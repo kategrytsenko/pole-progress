@@ -1,10 +1,7 @@
-start docker
+npx nx serve app
 
-supabase start
+npx nx serve admin
 
-supabase db reset
-
-supabase stop --no-backup
 supabase start
 
 supabase stop
