@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, signal } from '@angular/core';
 import { RouterModule } from '@angular/router';
 import { SupabaseClientService } from '@org/supabase';
 import { AuthStore } from '@org/auth';
@@ -13,8 +13,18 @@ import { AuthStore } from '@org/auth';
 })
 export class App implements OnInit {
   protected title = 'app';
-  private sb = inject(SupabaseClientService);
-  readonly auth = inject(AuthStore);
+  readonly auth = inject(AuthStore);  
+  email = signal('');
+
+  constructor() {
+    void this.auth.init();
+  }
+    
+  async onSendLink() {
+    const email = this.email().trim();
+    if (!email) return;
+    await this.auth.signInMagicLink(email);
+  }
 
   async onSignOut(): Promise<void> {
     await this.auth.signOut();
@@ -22,7 +32,6 @@ export class App implements OnInit {
   
   async ngOnInit() {
     this.auth.init();
-    // this.sb.client.auth.getSession().then(console.log);
   }
 
 

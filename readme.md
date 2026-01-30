@@ -7,3 +7,6 @@ supabase start
 - http://127.0.0.1:54323/project/default
 
 supabase stop
+
+Malpit
+http://127.0.0.1:54324 

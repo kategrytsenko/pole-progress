@@ -84,6 +84,18 @@ export class AuthStore {
     }
   }
 
+  async signInMagicLink(email: string): Promise<void> {
+    this.state.update(s => ({ ...s, loading: true, error: null }));
+    try {
+      await this.auth.signInWithMagicLink({ email });
+      // важливо: loading вимикаємо одразу, бо далі юзер підтвердить лінк у пошті
+      this.state.update(s => ({ ...s, loading: false }));
+    } catch (e: any) {
+      this.state.update(s => ({ ...s, loading: false, error: e?.message ?? 'Sign-in failed' }));
+    }
+  }
+
+
   async signOut(): Promise<void> {
     await this.auth.signOut();
     // onAuthStateChange сам все скине

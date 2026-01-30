@@ -8,6 +8,11 @@ export interface SignInPasswordInput {
   password: string;
 }
 
+export type SignInMagicLinkInput = {
+  email: string;
+  redirectTo?: string;
+};
+
 export interface SignUpPasswordInput {
   email: string;
   password: string;
@@ -18,9 +23,12 @@ export abstract class AuthApi {
   abstract getSession(): Promise<AuthSession | null>;
   abstract getUser(): Promise<AuthUser | null>;
 
+
   abstract signInWithPassword(input: SignInPasswordInput): Promise<AuthSession>;
   abstract signUpWithPassword(input: SignUpPasswordInput): Promise<AuthSession | null>; // supabase може повернути null session якщо треба підтвердження email
   abstract signOut(): Promise<void>;
+
+  abstract signInWithMagicLink(input: SignInMagicLinkInput): Promise<void>;
 
   // stream змін сесії
   abstract onAuthStateChange(cb: (session: AuthSession | null) => void): () => void;
