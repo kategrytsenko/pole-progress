@@ -1,2 +1,3 @@
 export * from './lib/supabase.tokens';
 export * from './lib/supabase.client';
+export * from './lib/provide-supabase';
