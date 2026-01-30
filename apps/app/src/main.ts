@@ -1,5 +1,10 @@
 import { bootstrapApplication } from '@angular/platform-browser';
-import { appConfig } from './app/app.config';
 import { App } from './app/app';
+import { environment } from './environments/environment';
+import { SUPABASE_CONFIG } from '@org/supabase';
 
-bootstrapApplication(App, appConfig).catch((err) => console.error(err));
+bootstrapApplication(App, {
+  providers: [
+    { provide: SUPABASE_CONFIG, useValue: { url: environment.supabaseUrl, anonKey: environment.supabaseAnonKey } },
+  ],
+});
