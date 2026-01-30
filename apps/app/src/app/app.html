@@ -1,6 +1,24 @@
-<div class="bg-red-500 text-white p-8 text-2xl">
-  Tailwind працює 🚀
-</div>
+    <main class="p-4">
+      @if (auth.loading()) {
+        <p aria-live="polite">Loading…</p>
+      } @else {
+        @if (auth.isAuthed()) {
+          <p>
+            Hi, <strong>{{ auth.user()?.email }}</strong>
+            <span class="ml-2">role: <strong>{{ auth.role() ?? '—' }}</strong></span>
+          </p>
 
-<app-nx-welcome></app-nx-welcome>
-<router-outlet></router-outlet>
+          <button
+            type="button"
+            class="underline"
+            (click)="onSignOut()"
+          >
+            Sign out
+          </button>
+        } @else {
+          <p>Not signed in</p>
+        }
+      }
+
+      <router-outlet />
+    </main>

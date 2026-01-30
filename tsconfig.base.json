@@ -19,7 +19,8 @@
       "@org/models": ["libs/shared/models/src/index.ts"],
       "@org/core": ["libs/core/src/index.ts"],
       "@org/supabase": ["libs/core/supabase/src/index.ts"],
-      "@org/auth": ["libs/core/auth/src/index.ts"]
+      "@org/auth": ["libs/core/auth/src/index.ts"],
+      "@org/admin": ["libs/features/admin/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]
