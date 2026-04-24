@@ -1,14 +1,20 @@
-import { computed, effect, inject, Injectable, signal } from '@angular/core';
+import { computed, inject, Injectable, signal } from '@angular/core';
 import { AuthApi, type AuthSession, type AuthUser } from './auth-api';
 import { ProfilesApi, type UserRole } from './profiles.api';
 
-type AuthState = {
+interface AuthState {
   session: AuthSession | null;
   user: AuthUser | null;
   role: UserRole | null;
   loading: boolean;
   error: string | null;
-};
+}
+
+function toErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'string') return err;
+  return fallback;
+}
 
 @Injectable({ providedIn: 'root' })
 export class AuthStore {
@@ -23,8 +29,6 @@ export class AuthStore {
     error: null,
   });
 
-  // selectors
-
   readonly session = computed<AuthSession | null>(() => this.state().session);
   readonly user = computed<AuthUser | null>(() => this.state().user);
   readonly role = computed<UserRole | null>(() => this.state().role);
@@ -35,28 +39,29 @@ export class AuthStore {
   readonly isAdmin = computed<boolean>(() => this.role() === 'admin');
 
   private unsubscribe: null | (() => void) = null;
+  private initialized = false;
 
   async init(): Promise<void> {
-    this.state.update(s => ({ ...s, loading: true, error: null }));
+    if (this.initialized) return;
+    this.initialized = true;
+
+    this.state.update((s) => ({ ...s, loading: true, error: null }));
 
     try {
       const session = await this.auth.getSession();
       const user = session?.user ?? null;
-
-      this.state.update(s => ({ ...s, session, user }));
+      this.state.update((s) => ({ ...s, session, user }));
 
       if (user) {
         const role = await this.profiles.getMyRole();
-        this.state.update(s => ({ ...s, role }));
-      } else {
-        this.state.update(s => ({ ...s, role: null }));
+        this.state.update((s) => ({ ...s, role }));
       }
 
       this.unsubscribe?.();
       this.unsubscribe = this.auth.onAuthStateChange(async (newSession) => {
         const newUser = newSession?.user ?? null;
 
-        this.state.update(s => ({
+        this.state.update((s) => ({
           ...s,
           session: newSession,
           user: newUser,
@@ -67,37 +72,41 @@ export class AuthStore {
         if (newUser) {
           try {
             const role = await this.profiles.getMyRole();
-            this.state.update(s => ({ ...s, role }));
-          } catch (e: any) {
-            this.state.update(s => ({ ...s, error: e?.message ?? 'Failed to load role' }));
+            this.state.update((s) => ({ ...s, role }));
+          } catch (err: unknown) {
+            this.state.update((s) => ({
+              ...s,
+              error: toErrorMessage(err, 'Failed to load role'),
+            }));
           }
         }
       });
 
-      this.state.update(s => ({ ...s, loading: false }));
-    } catch (e: any) {
-      this.state.update(s => ({
+      this.state.update((s) => ({ ...s, loading: false }));
+    } catch (err: unknown) {
+      this.state.update((s) => ({
         ...s,
         loading: false,
-        error: e?.message ?? 'Auth init failed',
+        error: toErrorMessage(err, 'Auth init failed'),
       }));
     }
   }
 
-  async signInMagicLink(email: string): Promise<void> {
-    this.state.update(s => ({ ...s, loading: true, error: null }));
+  async signInMagicLink(email: string, redirectTo?: string): Promise<void> {
+    this.state.update((s) => ({ ...s, loading: true, error: null }));
     try {
-      await this.auth.signInWithMagicLink({ email });
-      // важливо: loading вимикаємо одразу, бо далі юзер підтвердить лінк у пошті
-      this.state.update(s => ({ ...s, loading: false }));
-    } catch (e: any) {
-      this.state.update(s => ({ ...s, loading: false, error: e?.message ?? 'Sign-in failed' }));
+      await this.auth.signInWithMagicLink({ email, redirectTo });
+      this.state.update((s) => ({ ...s, loading: false }));
+    } catch (err: unknown) {
+      this.state.update((s) => ({
+        ...s,
+        loading: false,
+        error: toErrorMessage(err, 'Sign-in failed'),
+      }));
     }
   }
 
-
   async signOut(): Promise<void> {
     await this.auth.signOut();
-    // onAuthStateChange сам все скине
   }
 }

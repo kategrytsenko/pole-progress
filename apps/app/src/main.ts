@@ -1,15 +1,5 @@
 import { bootstrapApplication } from '@angular/platform-browser';
 import { App } from './app/app';
-import { environment } from './environments/environment';
-import { provideSupabase } from '@org/supabase';
-import { provideAuth } from '@org/auth';
+import { appConfig } from './app/app.config';
 
-bootstrapApplication(App, {
-  providers: [
-    provideSupabase({
-      url: environment.supabase.url,
-      anonKey: environment.supabase.anonKey,
-    }),
-    provideAuth(),
-  ],
-});
+bootstrapApplication(App, appConfig).catch((err) => console.error(err));

@@ -1,11 +1,24 @@
-import { ApplicationConfig, provideAppInitializer, inject } from '@angular/core';
-import { provideRouter } from '@angular/router';
+import {
+  ApplicationConfig,
+  inject,
+  provideAppInitializer,
+  provideZoneChangeDetection,
+} from '@angular/core';
+import { provideRouter, withComponentInputBinding } from '@angular/router';
+import { provideAuth, AuthStore } from '@org/auth';
+import { provideSupabase } from '@org/supabase';
+import { environment } from '../environments/environment';
 import { appRoutes } from './app.routes';
-import { AuthStore } from '@org/auth';
 
 export const appConfig: ApplicationConfig = {
   providers: [
-    provideRouter(appRoutes),
+    provideZoneChangeDetection({ eventCoalescing: true }),
+    provideRouter(appRoutes, withComponentInputBinding()),
+    provideSupabase({
+      url: environment.supabase.url,
+      anonKey: environment.supabase.anonKey,
+    }),
+    provideAuth(),
     provideAppInitializer(async () => {
       const auth = inject(AuthStore);
       await auth.init();

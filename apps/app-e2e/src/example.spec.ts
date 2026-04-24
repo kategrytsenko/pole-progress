@@ -1,8 +1,7 @@
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
-test('has title', async ({ page }) => {
+test('redirects unauthenticated user to /sign-in', async ({ page }) => {
   await page.goto('/');
-
-  // Expect h1 to contain a substring.
-  expect(await page.locator('h1').innerText()).toContain('Welcome');
+  await page.waitForURL('**/sign-in');
+  await expect(page).toHaveURL(/\/sign-in$/);
 });
