@@ -2,10 +2,11 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthStore } from '@org/auth';
 import { BrandingService } from '@org/data';
+import { ToastHostComponent } from '../toast/toast-host.component';
 
 @Component({
   selector: 'pp-app-shell',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, ToastHostComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <a
@@ -68,6 +69,8 @@ import { BrandingService } from '@org/data';
         <router-outlet />
       </main>
     </div>
+
+    <pp-toast-host />
   `,
 })
 export class AppShellPage {

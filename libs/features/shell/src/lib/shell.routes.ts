@@ -8,6 +8,10 @@ export const shellRoutes: Routes = [
     loadComponent: () => import('./pages/app-shell.page').then((m) => m.AppShellPage),
     children: [
       {
+        path: 'elements',
+        loadChildren: () => import('@org/element').then((m) => m.elementRoutes),
+      },
+      {
         path: '',
         loadChildren: () => import('@org/dashboard').then((m) => m.dashboardRoutes),
       },

@@ -1,0 +1,23 @@
+{
+  "name": "element",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/features/element/src",
+  "prefix": "pp",
+  "projectType": "library",
+  "tags": ["scope:feature"],
+  "targets": {
+    "lint": {
+      "executor": "@nx/eslint:lint"
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "libs/features/element",
+        "command": "vitest run"
+      },
+      "cache": true,
+      "inputs": ["default", "^production", { "externalDependencies": ["vitest"] }],
+      "outputs": ["{workspaceRoot}/coverage/libs/features/element"]
+    }
+  }
+}
