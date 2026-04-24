@@ -6,14 +6,10 @@ import { nxCopyAssetsPlugin } from '@nx/vite/plugins/nx-copy-assets.plugin';
 
 export default defineConfig(() => ({
   root: __dirname,
-  cacheDir: '../../../node_modules/.vite/libs/core/supabase',
+  cacheDir: '../../../node_modules/.vite/libs/features/shell',
   plugins: [angular(), nxViteTsPaths(), nxCopyAssetsPlugin(['*.md'])],
-  // Uncomment this if you are using workers.
-  // worker: {
-  //   plugins: () => [ nxViteTsPaths() ],
-  // },
   test: {
-    name: 'supabase',
+    name: 'shell',
     watch: false,
     passWithNoTests: true,
     globals: true,
@@ -22,7 +18,7 @@ export default defineConfig(() => ({
     setupFiles: ['src/test-setup.ts'],
     reporters: ['default'],
     coverage: {
-      reportsDirectory: '../../../coverage/libs/core/supabase',
+      reportsDirectory: '../../../coverage/libs/features/shell',
       provider: 'v8' as const,
     },
   },

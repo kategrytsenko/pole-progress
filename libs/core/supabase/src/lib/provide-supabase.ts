@@ -7,7 +7,15 @@ export function provideSupabase(config: SupabaseConfig) {
     { provide: SUPABASE_CONFIG, useValue: config },
     {
       provide: SUPABASE_CLIENT,
-      useFactory: (): SupabaseClient => createClient(config.url, config.anonKey),
+      useFactory: (): SupabaseClient =>
+        createClient(config.url, config.anonKey, {
+          auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: true,
+            flowType: 'pkce',
+          },
+        }),
     },
   ]);
 }

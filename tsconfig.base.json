@@ -17,6 +17,7 @@
     "paths": {
       "@org/supabase": ["libs/core/supabase/src/index.ts"],
       "@org/auth": ["libs/core/auth/src/index.ts"],
+      "@org/shell": ["libs/features/shell/src/index.ts"],
       "@org/admin": ["libs/features/admin/src/index.ts"]
     }
   },

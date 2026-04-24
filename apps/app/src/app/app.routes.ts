@@ -1,9 +1,15 @@
 import { Route } from '@angular/router';
+import { authRoutes } from '@org/auth';
 
 export const appRoutes: Route[] = [
+  ...authRoutes,
   {
     path: 'admin',
     loadChildren: () => import('@org/admin').then((m) => m.adminRoutes),
+  },
+  {
+    path: 'app',
+    loadChildren: () => import('@org/shell').then((m) => m.shellRoutes),
   },
   {
     path: 'forbidden',
@@ -11,13 +17,13 @@ export const appRoutes: Route[] = [
       import('./pages/forbidden.page').then((m) => m.ForbiddenPage),
   },
   {
-    path: 'sign-in',
-    loadComponent: () =>
-      import('./pages/sign-in.page').then((m) => m.SignInPage),
-  },
-  {
     path: '',
     pathMatch: 'full',
-    redirectTo: 'sign-in',
+    redirectTo: 'app',
+  },
+  {
+    path: '**',
+    loadComponent: () =>
+      import('./pages/not-found.page').then((m) => m.NotFoundPage),
   },
 ];

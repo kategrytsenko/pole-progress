@@ -8,6 +8,16 @@
   "targets": {
     "lint": {
       "executor": "@nx/eslint:lint"
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "libs/core/auth",
+        "command": "vitest run"
+      },
+      "cache": true,
+      "inputs": ["default", "^production", { "externalDependencies": ["vitest"] }],
+      "outputs": ["{workspaceRoot}/coverage/libs/core/auth"]
     }
   }
 }

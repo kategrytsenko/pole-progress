@@ -2,4 +2,7 @@ export * from './lib/auth-api';
 export * from './lib/supabase-auth.api';
 export * from './lib/provide-auth';
 export * from './lib/auth.store';
+export * from './lib/profiles.api';
+export * from './lib/auth-only.guard';
 export * from './lib/admin-only.guard';
+export * from './lib/auth.routes';

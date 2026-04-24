@@ -1,10 +1,10 @@
 {
-  "name": "supabase",
+  "name": "shell",
   "$schema": "../../../node_modules/nx/schemas/project-schema.json",
-  "sourceRoot": "libs/core/supabase/src",
-  "prefix": "lib",
+  "sourceRoot": "libs/features/shell/src",
+  "prefix": "pp",
   "projectType": "library",
-  "tags": ["scope:core"],
+  "tags": ["scope:feature"],
   "targets": {
     "lint": {
       "executor": "@nx/eslint:lint"
@@ -12,12 +12,12 @@
     "test": {
       "executor": "nx:run-commands",
       "options": {
-        "cwd": "libs/core/supabase",
+        "cwd": "libs/features/shell",
         "command": "vitest run"
       },
       "cache": true,
       "inputs": ["default", "^production", { "externalDependencies": ["vitest"] }],
-      "outputs": ["{workspaceRoot}/coverage/libs/core/supabase"]
+      "outputs": ["{workspaceRoot}/coverage/libs/features/shell"]
     }
   }
 }

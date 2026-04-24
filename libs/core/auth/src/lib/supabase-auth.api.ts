@@ -1,7 +1,14 @@
 import { inject, Injectable } from '@angular/core';
 import { SUPABASE_CLIENT } from '@org/supabase';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { AuthApi, type SignInPasswordInput, type SignUpPasswordInput, type AuthSession, type AuthUser, SignInMagicLinkInput } from './auth-api';
+import {
+  AuthApi,
+  type AuthSession,
+  type AuthUser,
+  type SignInMagicLinkInput,
+  type SignInPasswordInput,
+  type SignUpPasswordInput,
+} from './auth-api';
 
 @Injectable({ providedIn: 'root' })
 export class SupabaseAuthApi extends AuthApi {
@@ -40,7 +47,7 @@ export class SupabaseAuthApi extends AuthApi {
   async signInWithMagicLink({ email, redirectTo }: SignInMagicLinkInput): Promise<void> {
     const { error } = await this.client.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: redirectTo ? redirectTo : 'http://localhost:4200' },
+      options: redirectTo ? { emailRedirectTo: redirectTo } : undefined,
     });
     if (error) throw error;
   }
