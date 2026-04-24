@@ -9,8 +9,7 @@ export const shellRoutes: Routes = [
     children: [
       {
         path: '',
-        pathMatch: 'full',
-        loadComponent: () => import('./pages/app-home.page').then((m) => m.AppHomePage),
+        loadChildren: () => import('@org/dashboard').then((m) => m.dashboardRoutes),
       },
     ],
   },

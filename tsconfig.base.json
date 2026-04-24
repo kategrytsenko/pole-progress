@@ -19,6 +19,7 @@
       "@org/auth": ["libs/core/auth/src/index.ts"],
       "@org/data": ["libs/core/data/src/index.ts"],
       "@org/shell": ["libs/features/shell/src/index.ts"],
+      "@org/dashboard": ["libs/features/dashboard/src/index.ts"],
       "@org/admin": ["libs/features/admin/src/index.ts"]
     }
   },
