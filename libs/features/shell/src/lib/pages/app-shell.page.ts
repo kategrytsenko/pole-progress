@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthStore } from '@org/auth';
+import { BrandingService } from '@org/data';
 
 @Component({
   selector: 'pp-app-shell',
@@ -18,11 +19,19 @@ import { AuthStore } from '@org/auth';
       <header class="sticky top-0 z-30 border-b border-neutral-200 bg-white/90 backdrop-blur">
         <div class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
           <a routerLink="/app" class="flex items-center gap-2 text-base font-semibold tracking-tight">
-            <span
-              class="inline-flex h-7 w-7 items-center justify-center rounded-md bg-primary text-sm font-bold text-white"
-              aria-hidden="true"
-            >P</span>
-            <span>Pole Progress</span>
+            @if (branding.logoUrl(); as logo) {
+              <img
+                [src]="logo"
+                [alt]="branding.studioName()"
+                class="h-7 w-7 rounded-md object-cover"
+              />
+            } @else {
+              <span
+                class="inline-flex h-7 w-7 items-center justify-center rounded-md bg-primary text-sm font-bold text-white"
+                aria-hidden="true"
+              >{{ studioInitial() }}</span>
+            }
+            <span>{{ branding.studioName() }}</span>
           </a>
 
           <nav aria-label="Main" class="hidden items-center gap-2 sm:flex">
@@ -63,7 +72,12 @@ import { AuthStore } from '@org/auth';
 })
 export class AppShellPage {
   protected readonly auth = inject(AuthStore);
+  protected readonly branding = inject(BrandingService);
   private readonly router = inject(Router);
+
+  protected studioInitial(): string {
+    return this.branding.studioName().trim().charAt(0).toUpperCase() || 'P';
+  }
 
   protected async onSignOut(): Promise<void> {
     await this.auth.signOut();

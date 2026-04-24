@@ -6,6 +6,7 @@ import {
 } from '@angular/core';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { provideAuth, AuthStore } from '@org/auth';
+import { BrandingService } from '@org/data';
 import { provideSupabase } from '@org/supabase';
 import { environment } from '../environments/environment';
 import { appRoutes } from './app.routes';
@@ -21,7 +22,9 @@ export const appConfig: ApplicationConfig = {
     provideAuth(),
     provideAppInitializer(async () => {
       const auth = inject(AuthStore);
+      const branding = inject(BrandingService);
       await auth.init();
+      await branding.load();
     }),
   ],
 };
