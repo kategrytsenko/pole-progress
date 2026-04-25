@@ -60,9 +60,5 @@ export class BrandingService {
       root.style.setProperty('--pp-primary', settings.primary_color);
       root.style.setProperty('--pp-primary-600', settings.primary_color);
     }
-
-    if (settings.studio_name) {
-      document.title = settings.studio_name;
-    }
   }
 }

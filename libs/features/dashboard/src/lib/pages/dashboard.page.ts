@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { StateBlockComponent } from '@org/shell';
 import { DashboardStore, type DoneFilter } from '../dashboard.store';
 
 interface FilterOption {
@@ -15,7 +16,7 @@ const FILTER_OPTIONS: readonly FilterOption[] = [
 
 @Component({
   selector: 'pp-dashboard',
-  imports: [RouterLink],
+  imports: [RouterLink, StateBlockComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="space-y-5">
@@ -57,9 +58,9 @@ const FILTER_OPTIONS: readonly FilterOption[] = [
       </div>
 
       @if (store.loading()) {
-        <p class="text-sm text-neutral-500">Завантаження…</p>
+        <pp-state-block mode="loading" />
       } @else if (store.error(); as error) {
-        <p role="alert" class="text-sm text-red-600">{{ error }}</p>
+        <pp-state-block mode="error" [message]="error" />
       } @else {
         <div class="grid gap-6 lg:grid-cols-[220px_1fr]">
           <aside aria-label="Категорії" class="lg:sticky lg:top-20 lg:self-start">
@@ -95,9 +96,7 @@ const FILTER_OPTIONS: readonly FilterOption[] = [
 
           <div>
             @if (store.filteredElements().length === 0) {
-              <p class="rounded-lg border border-dashed border-neutral-300 bg-white px-4 py-8 text-center text-sm text-neutral-500">
-                Нічого не знайдено за поточним фільтром.
-              </p>
+              <pp-state-block mode="empty" message="Нічого не знайдено за поточним фільтром." />
             } @else {
               <ul class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
                 @for (el of store.filteredElements(); track el.id) {

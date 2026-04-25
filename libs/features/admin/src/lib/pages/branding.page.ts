@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { BrandingService, SettingsApi, type AppSettings } from '@org/data';
-import { ToastService } from '@org/shell';
+import { StateBlockComponent, ToastService } from '@org/shell';
 import { CatalogStorageApi } from '../catalog-storage.api';
 
 const FALLBACK_PRIMARY = '#7C3AED';
@@ -22,7 +22,7 @@ function toErrorMessage(err: unknown, fallback: string): string {
 
 @Component({
   selector: 'pp-branding',
-  imports: [FormsModule],
+  imports: [FormsModule, StateBlockComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="space-y-5">
@@ -32,7 +32,7 @@ function toErrorMessage(err: unknown, fallback: string): string {
       </header>
 
       @if (loading()) {
-        <p class="text-sm text-neutral-500">Завантаження…</p>
+        <pp-state-block mode="loading" />
       } @else {
         <form (submit)="onSave($event)" class="grid max-w-xl gap-5">
           <label class="flex flex-col gap-1 text-sm">

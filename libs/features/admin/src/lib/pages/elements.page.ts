@@ -12,7 +12,7 @@ import {
   type Element as CatalogElement,
   type ElementCategory,
 } from '@org/data';
-import { ToastService } from '@org/shell';
+import { StateBlockComponent, ToastService } from '@org/shell';
 import { CatalogStorageApi } from '../catalog-storage.api';
 
 function toErrorMessage(err: unknown, fallback: string): string {
@@ -23,7 +23,7 @@ function toErrorMessage(err: unknown, fallback: string): string {
 
 @Component({
   selector: 'pp-elements',
-  imports: [FormsModule],
+  imports: [FormsModule, StateBlockComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="space-y-5">
@@ -49,11 +49,9 @@ function toErrorMessage(err: unknown, fallback: string): string {
       </header>
 
       @if (loading()) {
-        <p class="text-sm text-neutral-500">Завантаження…</p>
+        <pp-state-block mode="loading" />
       } @else if (categories().length === 0) {
-        <p class="rounded-lg border border-dashed border-neutral-300 bg-white px-4 py-8 text-center text-sm text-neutral-500">
-          Спочатку створи хоча б одну категорію.
-        </p>
+        <pp-state-block mode="empty" message="Спочатку створи хоча б одну категорію." />
       } @else {
         <form (submit)="onCreate($event)" class="flex items-center gap-2">
           <label class="sr-only" for="new-element">Назва елемента</label>
@@ -76,9 +74,7 @@ function toErrorMessage(err: unknown, fallback: string): string {
         </form>
 
         @if (visibleElements().length === 0) {
-          <p class="rounded-lg border border-dashed border-neutral-300 bg-white px-4 py-8 text-center text-sm text-neutral-500">
-            У цій категорії ще немає елементів.
-          </p>
+          <pp-state-block mode="empty" message="У цій категорії ще немає елементів." />
         } @else {
           <ul class="divide-y divide-neutral-200 overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-sm">
             @for (el of visibleElements(); track el.id; let i = $index) {

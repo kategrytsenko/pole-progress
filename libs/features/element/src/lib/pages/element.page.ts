@@ -9,13 +9,13 @@ import {
 import { DatePipe } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { DashboardStore } from '@org/dashboard';
-import { ToastService } from '@org/shell';
+import { StateBlockComponent, ToastService } from '@org/shell';
 import { AddAttemptDialogComponent } from '../components/add-attempt-dialog.component';
 import { ElementStore } from '../element.store';
 
 @Component({
   selector: 'pp-element',
-  imports: [DatePipe, RouterLink, AddAttemptDialogComponent],
+  imports: [DatePipe, RouterLink, AddAttemptDialogComponent, StateBlockComponent],
   providers: [ElementStore],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -31,9 +31,9 @@ import { ElementStore } from '../element.store';
       </a>
 
       @if (store.loading()) {
-        <p class="text-sm text-neutral-500">Завантаження…</p>
+        <pp-state-block mode="loading" />
       } @else if (store.error(); as error) {
-        <p role="alert" class="text-sm text-red-600">{{ error }}</p>
+        <pp-state-block mode="error" [message]="error" />
       } @else if (store.element(); as element) {
         <header class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div class="flex items-center gap-3">
@@ -74,9 +74,10 @@ import { ElementStore } from '../element.store';
           <h2 class="text-lg font-semibold tracking-tight">Спроби ({{ store.attemptsList().length }})</h2>
 
           @if (store.attemptsList().length === 0) {
-            <p class="rounded-lg border border-dashed border-neutral-300 bg-white px-4 py-8 text-center text-sm text-neutral-500">
-              Поки що немає жодної спроби. Натисни «Додати спробу», щоб почати.
-            </p>
+            <pp-state-block
+              mode="empty"
+              message="Поки що немає жодної спроби. Натисни «Додати спробу», щоб почати."
+            />
           } @else {
             <ol class="space-y-3">
               @for (attempt of store.attemptsList(); track attempt.id) {
@@ -137,7 +138,7 @@ import { ElementStore } from '../element.store';
 
         <pp-add-attempt-dialog #dialog (created)="onAttemptCreated()" />
       } @else {
-        <p class="text-sm text-neutral-500">Елемент не знайдено.</p>
+        <pp-state-block mode="empty" message="Елемент не знайдено." />
       }
     </section>
   `,

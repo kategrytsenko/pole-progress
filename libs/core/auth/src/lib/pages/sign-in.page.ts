@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  ElementRef,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthStore } from '../auth.store';
@@ -86,12 +95,21 @@ export class SignInPage {
   protected readonly sentTo = signal<string | null>(null);
   protected readonly busy = computed(() => this.auth.loading());
   protected readonly errorText = computed(() => this.auth.error());
+  private readonly emailInput = viewChild<ElementRef<HTMLInputElement>>('emailInput');
 
   constructor() {
     effect(() => {
       if (this.auth.isAuthed()) {
         const redirect = this.route.snapshot.queryParamMap.get('redirect') ?? '/app';
         void this.router.navigateByUrl(redirect);
+      }
+    });
+
+    effect(() => {
+      if (this.sentTo()) return;
+      const input = this.emailInput()?.nativeElement;
+      if (input && document.activeElement !== input) {
+        input.focus();
       }
     });
   }

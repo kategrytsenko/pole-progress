@@ -4,17 +4,19 @@ import {
   provideAppInitializer,
   provideZoneChangeDetection,
 } from '@angular/core';
-import { provideRouter, withComponentInputBinding } from '@angular/router';
+import { provideRouter, TitleStrategy, withComponentInputBinding } from '@angular/router';
 import { provideAuth, AuthStore } from '@org/auth';
 import { BrandingService } from '@org/data';
 import { provideSupabase } from '@org/supabase';
 import { environment } from '../environments/environment';
 import { appRoutes } from './app.routes';
+import { PpTitleStrategy } from './title.strategy';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(appRoutes, withComponentInputBinding()),
+    { provide: TitleStrategy, useClass: PpTitleStrategy },
     provideSupabase({
       url: environment.supabase.url,
       anonKey: environment.supabase.anonKey,

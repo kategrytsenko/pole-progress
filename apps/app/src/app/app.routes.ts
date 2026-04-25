@@ -13,6 +13,7 @@ export const appRoutes: Route[] = [
   },
   {
     path: 'forbidden',
+    title: 'Доступ обмежено',
     loadComponent: () =>
       import('./pages/forbidden.page').then((m) => m.ForbiddenPage),
   },
@@ -23,6 +24,7 @@ export const appRoutes: Route[] = [
   },
   {
     path: '**',
+    title: 'Сторінку не знайдено',
     loadComponent: () =>
       import('./pages/not-found.page').then((m) => m.NotFoundPage),
   },

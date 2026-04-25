@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CatalogApi, type ElementCategory } from '@org/data';
-import { ToastService } from '@org/shell';
+import { StateBlockComponent, ToastService } from '@org/shell';
 
 function toErrorMessage(err: unknown, fallback: string): string {
   if (err instanceof Error) return err.message;
@@ -18,7 +18,7 @@ function toErrorMessage(err: unknown, fallback: string): string {
 
 @Component({
   selector: 'pp-categories',
-  imports: [FormsModule],
+  imports: [FormsModule, StateBlockComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="space-y-5">
@@ -48,11 +48,9 @@ function toErrorMessage(err: unknown, fallback: string): string {
       </form>
 
       @if (loading()) {
-        <p class="text-sm text-neutral-500">Завантаження…</p>
+        <pp-state-block mode="loading" />
       } @else if (categories().length === 0) {
-        <p class="rounded-lg border border-dashed border-neutral-300 bg-white px-4 py-8 text-center text-sm text-neutral-500">
-          Категорій поки немає.
-        </p>
+        <pp-state-block mode="empty" message="Категорій поки немає." />
       } @else {
         <ul class="divide-y divide-neutral-200 overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-sm">
           @for (cat of categories(); track cat.id; let i = $index) {
