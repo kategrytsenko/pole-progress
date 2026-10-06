@@ -11,3 +11,10 @@
 - If the user needs help with an Nx configuration or project graph error, use the `nx_workspace` tool to get any errors
 
 <!-- nx configuration end-->
+
+# Project-Specific Guidelines (Pole Progress)
+
+- **Tech Stack:** Angular 21, AnalogJS (Vite-plugin-angular), Tailwind CSS, Supabase, Nx Monorepo.
+- **Task Execution:** Always run commands via `npx nx <target> <project-name>` (e.g., `npx nx serve app`). Do not rely on npm scripts if they are not defined.
+- **Styling:** Use Tailwind CSS classes. Keep components modular inside `libs/features/` and `libs/core/`.
+- **Database & Auth:** Supabase is used for authentication and database operations, with migrations located in `supabase/migrations/`.

@@ -2,7 +2,14 @@
   "name": "@org/source",
   "version": "0.0.0",
   "license": "MIT",
-  "scripts": {},
+  "scripts": {
+    "start": "nx serve app",
+    "serve": "nx serve app",
+    "build": "nx build app",
+    "test": "nx test app",
+    "lint": "nx lint app",
+    "e2e": "nx e2e app-e2e"
+  },
   "private": true,
   "dependencies": {
     "@angular-devkit/build-angular": "21.1.1",
