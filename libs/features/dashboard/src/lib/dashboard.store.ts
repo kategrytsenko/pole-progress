@@ -147,6 +147,32 @@ export class DashboardStore {
   }
 
   /**
+   * Rebuilds one element's diary summary from its current attempts.
+   * An edit can change which attempt is latest, so the stage is derived again.
+   */
+  replaceElementProgress(attempts: readonly ElementAttempt[]): void {
+    const elementId = attempts[0]?.element_id;
+    if (!elementId) return;
+
+    const summary = summarizeElementStages(
+      attempts.map((attempt) => ({
+        element_id: attempt.element_id,
+        stage: attempt.stage,
+        date: attempt.date,
+        created_at: attempt.created_at,
+      })),
+    ).get(elementId);
+
+    if (!summary) return;
+
+    this.state.update((s) => {
+      const next = new Map(s.progress);
+      next.set(elementId, summary);
+      return { ...s, progress: next };
+    });
+  }
+
+  /**
    * Folds a newly saved attempt into the diary summary without a refetch.
    * A backdated attempt increments the count and leaves the newer stage in place.
    */

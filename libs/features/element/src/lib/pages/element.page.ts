@@ -129,16 +129,28 @@ type StepState = 'current' | 'reached' | 'upcoming';
                           {{ label(entry.attempt.stage) }}
                         </span>
                       </div>
-                      <button
-                        type="button"
-                        (click)="onDeleteAttempt(entry.attempt.id)"
-                        aria-label="Видалити спробу"
-                        class="rounded p-1 text-neutral-400 transition hover:bg-red-50 hover:text-red-600"
-                      >
-                        <svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4" aria-hidden="true">
-                          <path fill-rule="evenodd" d="M9 2a1 1 0 00-1 1v1H5a1 1 0 100 2h10a1 1 0 100-2h-3V3a1 1 0 00-1-1H9zM6 8a1 1 0 011 1v6a1 1 0 11-2 0V9a1 1 0 011-1zm4 0a1 1 0 011 1v6a1 1 0 11-2 0V9a1 1 0 011-1zm5 0a1 1 0 00-1 1v6a1 1 0 102 0V9a1 1 0 00-1-1z" clip-rule="evenodd" />
-                        </svg>
-                      </button>
+                      <div class="flex items-center">
+                        <button
+                          type="button"
+                          (click)="onEditAttempt(entry.attempt)"
+                          aria-label="Редагувати спробу"
+                          class="rounded p-1 text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-700"
+                        >
+                          <svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4" aria-hidden="true">
+                            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          (click)="onDeleteAttempt(entry.attempt.id)"
+                          aria-label="Видалити спробу"
+                          class="rounded p-1 text-neutral-400 transition hover:bg-red-50 hover:text-red-600"
+                        >
+                          <svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4" aria-hidden="true">
+                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-1 1v1H5a1 1 0 100 2h10a1 1 0 100-2h-3V3a1 1 0 00-1-1H9zM6 8a1 1 0 011 1v6a1 1 0 11-2 0V9a1 1 0 011-1zm4 0a1 1 0 011 1v6a1 1 0 11-2 0V9a1 1 0 011-1zm5 0a1 1 0 00-1 1v6a1 1 0 102 0V9a1 1 0 00-1-1z" clip-rule="evenodd" />
+                          </svg>
+                        </button>
+                      </div>
                     </header>
 
                     @if (entry.previousStage === null) {
@@ -194,7 +206,11 @@ type StepState = 'current' | 'reached' | 'upcoming';
           }
         </section>
 
-        <pp-add-attempt-dialog #dialog (created)="onAttemptCreated($event)" />
+        <pp-add-attempt-dialog
+          #dialog
+          (created)="onAttemptCreated($event)"
+          (updated)="onAttemptUpdated()"
+        />
       } @else {
         <pp-state-block mode="empty" message="Елемент не знайдено." />
       }
@@ -219,8 +235,18 @@ export class ElementPage implements OnInit {
     this.dialog?.open();
   }
 
+  protected onEditAttempt(attempt: ElementAttempt): void {
+    this.dialog?.openForEdit(attempt);
+  }
+
   protected onAttemptCreated(attempt: ElementAttempt): void {
     this.dashboard.recordAttempt(attempt);
+  }
+
+  protected onAttemptUpdated(): void {
+    this.dashboard.replaceElementProgress(
+      this.store.timeline().map((entry) => entry.attempt),
+    );
   }
 
   protected async onDeleteAttempt(attemptId: string): Promise<void> {

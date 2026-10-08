@@ -78,6 +78,13 @@ export interface CreateAttemptInput {
   stage: AttemptStage;
 }
 
+export interface UpdateAttemptInput {
+  id: string;
+  date: string;
+  note?: string | null;
+  stage: AttemptStage;
+}
+
 export interface CreateCategoryInput {
   name: string;
   order?: number;

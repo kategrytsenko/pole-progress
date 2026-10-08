@@ -1,7 +1,12 @@
 import { inject, Injectable } from '@angular/core';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SUPABASE_CLIENT } from '@org/supabase';
-import type { AttemptProgressRow, CreateAttemptInput, ElementAttempt } from './models';
+import type {
+  AttemptProgressRow,
+  CreateAttemptInput,
+  ElementAttempt,
+  UpdateAttemptInput,
+} from './models';
 
 const ATTEMPT_COLUMNS = 'id, element_id, user_id, date, note, stage, created_at';
 const PROGRESS_COLUMNS = 'element_id, stage, date, created_at';
@@ -52,6 +57,25 @@ export class AttemptsApi {
         note: input.note ?? null,
         stage: input.stage,
       })
+      .select(ATTEMPT_COLUMNS)
+      .single<ElementAttempt>();
+
+    if (error) throw error;
+    return data;
+  }
+
+  async updateAttempt(input: UpdateAttemptInput): Promise<ElementAttempt> {
+    const uid = await this.requireUid();
+
+    const { data, error } = await this.client
+      .from('element_attempts')
+      .update({
+        date: input.date,
+        note: input.note ?? null,
+        stage: input.stage,
+      })
+      .eq('id', input.id)
+      .eq('user_id', uid)
       .select(ATTEMPT_COLUMNS)
       .single<ElementAttempt>();
 

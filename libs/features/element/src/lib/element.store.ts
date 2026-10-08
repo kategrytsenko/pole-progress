@@ -6,6 +6,7 @@ import {
   type CreateAttemptInput,
   type Element,
   type ElementAttempt,
+  type UpdateAttemptInput,
   MediaApi,
   type MediaItem,
   type MediaType,
@@ -65,6 +66,10 @@ export class ElementStore {
   readonly saving = computed<boolean>(() => this.state().saving);
   readonly error = computed<string | null>(() => this.state().error);
 
+  mediaFor(attemptId: string): readonly MediaItemView[] {
+    return this.state().mediaByAttempt.get(attemptId) ?? [];
+  }
+
   async load(elementId: string): Promise<void> {
     this.state.update((s) => ({ ...s, loading: true, error: null }));
 
@@ -96,21 +101,7 @@ export class ElementStore {
     this.state.update((s) => ({ ...s, saving: true, error: null }));
     try {
       const attempt = await this.attempts.createAttempt(input);
-
-      if (files.length > 0) {
-        await Promise.all(
-          files.map((file) =>
-            this.media.uploadAndAttach({
-              attemptId: attempt.id,
-              file,
-              type: detectMediaType(file),
-            }),
-          ),
-        );
-      }
-
-      const items = await this.media.listForAttempt(attempt.id);
-      const views = await this.resolveSignedUrls(items);
+      const views = await this.uploadAndResolve(attempt.id, files);
 
       this.state.update((s) => {
         const nextMap = new Map(s.mediaByAttempt);
@@ -134,6 +125,49 @@ export class ElementStore {
     }
   }
 
+  async updateAttempt(input: UpdateAttemptInput, files: File[]): Promise<ElementAttempt> {
+    this.state.update((s) => ({ ...s, saving: true, error: null }));
+    try {
+      const attempt = await this.attempts.updateAttempt(input);
+      const views = files.length > 0 ? await this.uploadAndResolve(attempt.id, files) : null;
+
+      this.state.update((s) => {
+        const nextMap = new Map(s.mediaByAttempt);
+        if (views) nextMap.set(attempt.id, views);
+        return {
+          ...s,
+          attempts: s.attempts.map((existing) =>
+            existing.id === attempt.id ? attempt : existing,
+          ),
+          mediaByAttempt: nextMap,
+          saving: false,
+        };
+      });
+
+      return attempt;
+    } catch (err: unknown) {
+      this.state.update((s) => ({
+        ...s,
+        saving: false,
+        error: toErrorMessage(err, 'Failed to update attempt'),
+      }));
+      throw err;
+    }
+  }
+
+  async deleteMedia(attemptId: string, mediaId: string): Promise<void> {
+    await this.media.delete(mediaId);
+    this.state.update((s) => {
+      const current = s.mediaByAttempt.get(attemptId) ?? [];
+      const nextMap = new Map(s.mediaByAttempt);
+      nextMap.set(
+        attemptId,
+        current.filter((item) => item.id !== mediaId),
+      );
+      return { ...s, mediaByAttempt: nextMap };
+    });
+  }
+
   async deleteAttempt(attemptId: string): Promise<void> {
     try {
       await this.attempts.deleteAttempt(attemptId);
@@ -153,6 +187,26 @@ export class ElementStore {
       }));
       throw err;
     }
+  }
+
+  private async uploadAndResolve(
+    attemptId: string,
+    files: readonly File[],
+  ): Promise<MediaItemView[]> {
+    if (files.length > 0) {
+      await Promise.all(
+        files.map((file) =>
+          this.media.uploadAndAttach({
+            attemptId,
+            file,
+            type: detectMediaType(file),
+          }),
+        ),
+      );
+    }
+
+    const items = await this.media.listForAttempt(attemptId);
+    return this.resolveSignedUrls(items);
   }
 
   private async loadMediaForAttempts(
