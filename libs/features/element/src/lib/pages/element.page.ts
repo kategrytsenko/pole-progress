@@ -20,13 +20,20 @@ import {
 import { DashboardStore } from '@org/dashboard';
 import { StateBlockComponent, ToastService } from '@org/shell';
 import { AddAttemptDialogComponent } from '../components/add-attempt-dialog.component';
+import { InstructorFeedbackComponent } from '../components/instructor-feedback.component';
 import { ElementStore, type MediaItemView } from '../element.store';
 
 type StepState = 'current' | 'reached' | 'upcoming';
 
 @Component({
   selector: 'pp-element',
-  imports: [DatePipe, RouterLink, AddAttemptDialogComponent, StateBlockComponent],
+  imports: [
+    DatePipe,
+    RouterLink,
+    AddAttemptDialogComponent,
+    InstructorFeedbackComponent,
+    StateBlockComponent,
+  ],
   providers: [ElementStore],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -167,6 +174,10 @@ type StepState = 'current' | 'reached' | 'upcoming';
 
                     @if (entry.attempt.note) {
                       <p class="mt-3 whitespace-pre-wrap text-sm text-neutral-700">{{ entry.attempt.note }}</p>
+                    }
+
+                    @if (entry.attempt.instructor_feedback; as feedback) {
+                      <pp-instructor-feedback class="mt-3 block" [feedback]="feedback" />
                     }
 
                     <p class="mt-3 text-xs text-neutral-500">{{ mediaSummary(entry.media) }}</p>

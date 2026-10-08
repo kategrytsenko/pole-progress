@@ -12,7 +12,7 @@ todos:
     content: "Session 3: @org/schedule week list + listSessionsInRange + /app/schedule route"
     status: completed
   - id: booking-optional
-    content: "Book/cancel RPCs, capacity UI, and pass balances — kept, demoted to the optional Schedule nav item"
+    content: Book/cancel RPCs, capacity UI, and pass balances — kept, demoted to the optional Schedule nav item
     status: completed
   - id: s4-diary-stages
     content: "Session 4: attempt stages, chronological media timeline, diary-first shell nav"

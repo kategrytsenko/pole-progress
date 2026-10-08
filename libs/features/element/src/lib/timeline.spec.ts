@@ -8,6 +8,7 @@ function attempt(
     element_id: 'el',
     user_id: 'user',
     note: null,
+    instructor_feedback: null,
     ...partial,
   };
 }

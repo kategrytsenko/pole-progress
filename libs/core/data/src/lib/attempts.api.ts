@@ -1,14 +1,24 @@
 import { inject, Injectable } from '@angular/core';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SUPABASE_CLIENT } from '@org/supabase';
+import {
+  instructorNoteBody,
+  mapElementAttempt,
+  readInstructorFeedback,
+  type ElementAttemptRow,
+} from './attempt-feedback';
 import type {
+  AttemptInstructorFeedback,
   AttemptProgressRow,
   CreateAttemptInput,
   ElementAttempt,
   UpdateAttemptInput,
+  UpsertInstructorFeedbackInput,
 } from './models';
 
-const ATTEMPT_COLUMNS = 'id, element_id, user_id, date, note, stage, created_at';
+const ATTEMPT_COLUMNS =
+  'id, element_id, user_id, date, note, stage, created_at, attempt_instructor_notes(author_id, body, updated_at, author:profiles(name))';
+const NOTE_COLUMNS = 'author_id, body, updated_at, author:profiles(name)';
 const PROGRESS_COLUMNS = 'element_id, stage, date, created_at';
 
 @Injectable({ providedIn: 'root' })
@@ -25,10 +35,10 @@ export class AttemptsApi {
       .eq('user_id', uid)
       .order('date', { ascending: false })
       .order('created_at', { ascending: false })
-      .returns<ElementAttempt[]>();
+      .returns<ElementAttemptRow[]>();
 
     if (error) throw error;
-    return data ?? [];
+    return (data ?? []).map(mapElementAttempt);
   }
 
   /** Every attempt the current student has logged. The diary store keeps the latest stage per element. */
@@ -58,10 +68,11 @@ export class AttemptsApi {
         stage: input.stage,
       })
       .select(ATTEMPT_COLUMNS)
-      .single<ElementAttempt>();
+      .single<ElementAttemptRow>();
 
     if (error) throw error;
-    return data;
+    if (!data) throw new Error('Attempt not found');
+    return mapElementAttempt(data);
   }
 
   async updateAttempt(input: UpdateAttemptInput): Promise<ElementAttempt> {
@@ -77,10 +88,37 @@ export class AttemptsApi {
       .eq('id', input.id)
       .eq('user_id', uid)
       .select(ATTEMPT_COLUMNS)
-      .single<ElementAttempt>();
+      .single<ElementAttemptRow>();
 
     if (error) throw error;
-    return data;
+    if (!data) throw new Error('Attempt not found');
+    return mapElementAttempt(data);
+  }
+
+  /** Staff-only. RLS rejects the write when the caller is not staff. */
+  async upsertInstructorFeedback(
+    input: UpsertInstructorFeedbackInput,
+  ): Promise<AttemptInstructorFeedback> {
+    const uid = await this.requireUid();
+    const body = instructorNoteBody(input.body);
+
+    const { data, error } = await this.client
+      .from('attempt_instructor_notes')
+      .upsert(
+        {
+          attempt_id: input.attemptId,
+          author_id: uid,
+          body,
+        },
+        { onConflict: 'attempt_id' },
+      )
+      .select(NOTE_COLUMNS)
+      .single();
+
+    if (error) throw error;
+    const feedback = readInstructorFeedback(data);
+    if (!feedback) throw new Error('Instructor note was not saved');
+    return feedback;
   }
 
   async deleteAttempt(id: string): Promise<void> {

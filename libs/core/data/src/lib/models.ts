@@ -45,6 +45,14 @@ export interface Element {
 /** Self-assessment stored on each diary attempt, from first tries through a reliable hold. */
 export type AttemptStage = 'trying' | 'in_progress' | 'held' | 'mastered';
 
+/** Coach comment on one diary attempt. Distinct from the student's own note. */
+export interface AttemptInstructorFeedback {
+  author_id: string | null;
+  author_name: string | null;
+  body: string;
+  updated_at: string;
+}
+
 export interface ElementAttempt {
   id: string;
   element_id: string;
@@ -53,6 +61,12 @@ export interface ElementAttempt {
   note: string | null;
   stage: AttemptStage;
   created_at: string;
+  instructor_feedback: AttemptInstructorFeedback | null;
+}
+
+export interface UpsertInstructorFeedbackInput {
+  attemptId: string;
+  body: string;
 }
 
 export interface AttemptProgressRow {

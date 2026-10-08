@@ -18,8 +18,9 @@ Angular 21 SPA for a single pole-dance studio. One studio = one Supabase project
 - Keep files small. Add a function, type, or component only when a second caller needs it.
 - DB rows store storage paths. Resolve private media with signed URLs at read time.
 
-## Responses
+## Responses & Execution
 
+- **Global Context Rule**: Angular 21 (signals, OnPush), Tailwind CSS, and strict typing apply to all generated code automatically. Do not repeat these constraints in prompts.
 - Write production-ready code: typed, OnPush, and consistent with the surrounding file.
 - Prefer editing the existing file over a new abstraction.
 - Run Nx for lint, test, and build. Do not invent npm scripts.
