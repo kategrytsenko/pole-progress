@@ -1,10 +1,10 @@
 import { Routes } from '@angular/router';
-import { adminOnlyGuard } from '@org/auth';
+import { adminOnlyGuard, studioAccessGuard } from '@org/auth';
 
 export const adminRoutes: Routes = [
   {
     path: '',
-    canMatch: [adminOnlyGuard],
+    canMatch: [studioAccessGuard, adminOnlyGuard],
     loadComponent: () => import('./pages/admin-shell.page').then((m) => m.AdminShellPage),
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'categories' },
@@ -23,6 +23,11 @@ export const adminRoutes: Routes = [
         path: 'branding',
         title: 'Брендинг — Адмін',
         loadComponent: () => import('./pages/branding.page').then((m) => m.BrandingPage),
+      },
+      {
+        path: 'clients',
+        title: 'Клієнти — Адмін',
+        loadComponent: () => import('./pages/clients.page').then((m) => m.ClientsPage),
       },
     ],
   },

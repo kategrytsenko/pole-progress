@@ -1,17 +1,12 @@
 import { inject } from '@angular/core';
 import { CanMatchFn, Router } from '@angular/router';
+import { signInRedirect } from './auth-redirect';
 import { AuthStore } from './auth.store';
 
-export const authOnlyGuard: CanMatchFn = (_route, segments) => {
+export const authOnlyGuard: CanMatchFn = async (_route, segments) => {
   const auth = inject(AuthStore);
   const router = inject(Router);
-
+  await auth.ensureAccessResolved();
   if (auth.isAuthed()) return true;
-
-  const attempted = router.getCurrentNavigation()?.extractedUrl.toString();
-  const fallback = '/' + segments.map((segment) => segment.path).join('/');
-  const target = attempted && attempted !== '/' ? attempted : fallback;
-  return router.createUrlTree(['/sign-in'], {
-    queryParams: target && target !== '/' ? { redirect: target } : undefined,
-  });
+  return signInRedirect(router, segments);
 };

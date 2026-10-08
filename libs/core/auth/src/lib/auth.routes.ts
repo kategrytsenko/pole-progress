@@ -11,4 +11,9 @@ export const authRoutes: Routes = [
     title: 'Авторизація…',
     loadComponent: () => import('./pages/auth-callback.page').then((m) => m.AuthCallbackPage),
   },
+  {
+    path: 'access-pending',
+    title: 'Членство',
+    loadComponent: () => import('./pages/access-pending.page').then((m) => m.AccessPendingPage),
+  },
 ];

@@ -6,6 +6,7 @@ import {
   type AuthSession,
   type AuthUser,
   type SignInMagicLinkInput,
+  type SignInOAuthInput,
   type SignInPasswordInput,
   type SignUpPasswordInput,
   type VerifyEmailOtpInput,
@@ -35,9 +36,33 @@ export class SupabaseAuthApi extends AuthApi {
   }
 
   async signUpWithPassword(input: SignUpPasswordInput): Promise<AuthSession | null> {
-    const { data, error } = await this.client.auth.signUp(input);
+    const name = input.name?.trim();
+    const { data, error } = await this.client.auth.signUp({
+      email: input.email,
+      password: input.password,
+      options: {
+        data: name ? { name } : undefined,
+        emailRedirectTo: input.emailRedirectTo,
+      },
+    });
     if (error) throw error;
     return data.session ?? null;
+  }
+
+  async signInWithOAuth({ provider, redirectTo }: SignInOAuthInput): Promise<void> {
+    // GoTrue has no Instagram provider. Keep the button, and fail with a mapped message.
+    if (provider === 'instagram') {
+      throw new Error('Unsupported provider: instagram is not enabled');
+    }
+
+    const { error } = await this.client.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo,
+        queryParams: { prompt: 'select_account' },
+      },
+    });
+    if (error) throw error;
   }
 
   async signOut(): Promise<void> {

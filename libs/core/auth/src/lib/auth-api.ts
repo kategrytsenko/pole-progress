@@ -29,7 +29,16 @@ export interface VerifyEmailOtpInput {
 export interface SignUpPasswordInput {
   email: string;
   password: string;
-  // на майбутнє: user_metadata?: Record<string, unknown>
+  name?: string;
+  emailRedirectTo?: string;
+}
+
+/** Google is a Supabase provider. Instagram is not, so the client keeps it as a placeholder. */
+export type StudioOAuthProvider = 'google' | 'instagram';
+
+export interface SignInOAuthInput {
+  provider: StudioOAuthProvider;
+  redirectTo: string;
 }
 
 export abstract class AuthApi {
@@ -38,7 +47,8 @@ export abstract class AuthApi {
 
 
   abstract signInWithPassword(input: SignInPasswordInput): Promise<AuthSession>;
-  abstract signUpWithPassword(input: SignUpPasswordInput): Promise<AuthSession | null>; // supabase може повернути null session якщо треба підтвердження email
+  abstract signUpWithPassword(input: SignUpPasswordInput): Promise<AuthSession | null>;
+  abstract signInWithOAuth(input: SignInOAuthInput): Promise<void>;
   abstract signOut(): Promise<void>;
 
   abstract signInWithMagicLink(input: SignInMagicLinkInput): Promise<void>;

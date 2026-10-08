@@ -1,34 +1,36 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { destinationAfterAuth } from '../auth-redirect';
 import { AuthStore } from '../auth.store';
+import { AuthFrameComponent } from './auth-frame.component';
 
 @Component({
   selector: 'pp-auth-callback',
-  imports: [RouterLink],
+  imports: [RouterLink, AuthFrameComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <main class="min-h-screen flex items-center justify-center bg-neutral-50 px-4">
+    <pp-auth-frame>
       <section
-        class="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-lg ring-1 ring-neutral-200"
+        class="rounded-2xl bg-white p-8 text-center text-neutral-900 shadow-xl shadow-black/20"
         aria-live="polite"
       >
         @if (errorText(); as err) {
-          <h1 class="text-xl font-semibold text-rose-700">Не вдалось залогінитись</h1>
+          <h1 class="text-xl font-semibold text-rose-700">Не вдалось увійти</h1>
           <p class="mt-2 text-sm text-neutral-600">{{ err }}</p>
           <a routerLink="/sign-in" class="mt-6 inline-block text-sm font-medium text-primary underline">
             Спробувати ще раз
           </a>
         } @else if (timedOut()) {
-          <h1 class="text-xl font-semibold text-neutral-900">Час очікування вийшов</h1>
+          <h1 class="text-xl font-semibold text-neutral-950">Час очікування вийшов</h1>
           <p class="mt-2 text-sm text-neutral-600">
-            Сесія не з'явилась. Можливо, посилання застаріло — запроси нове.
+            Сесія не з'явилась. Посилання могло застаріти — запроси нове або увійди з паролем.
           </p>
           <a routerLink="/sign-in" class="mt-6 inline-block text-sm font-medium text-primary underline">
             На сторінку входу
           </a>
         } @else {
-          <h1 class="text-xl font-semibold text-neutral-900">Заходимо…</h1>
-          <p class="mt-2 text-sm text-neutral-600">Перевіряємо твоє посилання.</p>
+          <h1 class="text-xl font-semibold text-neutral-950">Заходимо…</h1>
+          <p class="mt-2 text-sm text-neutral-600">Підтверджуємо сесію і членство студії.</p>
           <div
             class="mx-auto mt-6 h-8 w-8 animate-spin rounded-full border-2 border-neutral-300 border-t-primary"
             role="status"
@@ -36,7 +38,7 @@ import { AuthStore } from '../auth.store';
           ></div>
         }
       </section>
-    </main>
+    </pp-auth-frame>
   `,
 })
 export class AuthCallbackPage {
@@ -54,21 +56,20 @@ export class AuthCallbackPage {
 
   constructor() {
     effect(() => {
-      if (!this.auth.session()) return;
-      const redirect = this.redirectTarget();
+      const urlError = this.route.snapshot.queryParamMap.get('error_description')
+        ?? this.route.snapshot.queryParamMap.get('error');
+      if (urlError) return;
+      if (!this.auth.isAuthed() || !this.auth.accessResolved()) return;
+      const requested = this.route.snapshot.queryParamMap.get('redirect')
+        ?? sessionStorage.getItem('pp-auth-redirect');
       sessionStorage.removeItem('pp-auth-redirect');
-      void this.router.navigateByUrl(redirect, { replaceUrl: true });
+      void this.router.navigateByUrl(
+        destinationAfterAuth(this.auth.hasStudioAccess(), requested),
+        { replaceUrl: true },
+      );
     });
 
     void this.complete();
-  }
-
-  private redirectTarget(): string {
-    return (
-      this.route.snapshot.queryParamMap.get('redirect')
-      ?? sessionStorage.getItem('pp-auth-redirect')
-      ?? '/app'
-    );
   }
 
   private async complete(): Promise<void> {

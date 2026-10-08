@@ -45,6 +45,12 @@ import { ToastHostComponent } from '@org/shell';
               [routerLinkActiveOptions]="{ exact: false }"
               class="border-b-2 border-transparent px-3 py-2 text-sm font-medium text-neutral-600 transition hover:text-primary"
             >Брендинг</a>
+            <a
+              routerLink="clients"
+              routerLinkActive="border-primary text-primary"
+              [routerLinkActiveOptions]="{ exact: false }"
+              class="border-b-2 border-transparent px-3 py-2 text-sm font-medium text-neutral-600 transition hover:text-primary"
+            >Клієнти</a>
           </div>
         </nav>
       </header>

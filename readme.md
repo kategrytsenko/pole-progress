@@ -45,7 +45,7 @@ supabase db reset
 
 The default role for any new user is `student`. To grant `admin`:
 
-1. Sign in with your email at <http://localhost:4200/sign-in> and click the magic-link from Mailpit.
+1. Sign in at <http://localhost:4200/sign-in> with email and password. Magic link still works through Mailpit, and Google appears once `[auth.external.google]` is enabled. Local demo accounts from the schedule migration: `instructor.demo@pole.local` and `client.demo@pole.local`, password `demo-local-only`.
 2. Find your user id in Supabase Studio → `auth.users`.
 3. Run in SQL Editor (or via `supabase/snippets/Set admin role.sql`):
    ```sql
@@ -67,6 +67,18 @@ where id = '<user-id>';
 
 Use `role = 'admin'` for a full admin. Sign out and back in so `AuthStore` reloads the role. These statements run as the database owner; a client cannot self-promote through the API.
 
+After the first admin exists, later role changes are done in the app at `/admin/clients`. That page is behind `adminOnlyGuard`, and Postgres still rejects a role change unless `is_admin()` is true.
+
+## Studio access
+
+Signing in is not enough to open `/app`. Staff (`admin`, `instructor`) go straight in. A client needs an **active** `client_passes` row: `status = 'active'` and the current time between `valid_from` and `valid_until`. Anyone else lands on `/access-pending`.
+
+The same rule is `public.has_studio_access()` in `supabase/migrations/202610080006_studio_access.sql`. Apply it with `supabase db reset` or `supabase migration up`. Sessions stay in the browser (`persistSession`), so a reload keeps the user signed in and re-checks membership.
+
+## Admin: clients
+
+`/admin/clients` lists every profile (name, email, id, role) and whether a pass is active right now. **Видати** inserts a `client_passes` row with `status = 'active'`, `valid_from`, and `valid_until`. **Продовжити** updates the pass that is already active and refills `remaining` from the chosen product. Emails come from `admin_profile_emails()` in `supabase/migrations/202610090001_admin_clients.sql`. Insert and update on `client_passes` require `is_admin()`.
+
 ## Project layout
 
 ```
@@ -76,14 +88,14 @@ apps/
 libs/
   core/
     supabase/               # @org/supabase  — DI tokens + provideSupabase
-    auth/                   # @org/auth      — AuthApi, AuthStore, guards, magic-link pages
+    auth/                   # @org/auth      — AuthApi, AuthStore, guards, sign-in (password, Google, magic link)
     data/                   # @org/data      — domain models, Catalog/Attempts/Media/Settings APIs, BrandingService
   features/
     shell/                  # @org/shell     — AppShellPage, ToastService, StateBlockComponent
     dashboard/              # @org/dashboard — diary home: stage summary + element grid
     element/                # @org/element   — chronological attempt timeline + stage when logging
     schedule/               # @org/schedule  — optional week list, book and cancel
-    admin/                  # @org/admin     — Categories / Elements / Branding pages
+    admin/                  # @org/admin     — Categories / Elements / Branding / Clients
 supabase/
   migrations/               # ordered SQL migrations
   seed.sql                  # seeded categories + sample elements
@@ -114,7 +126,7 @@ The app is shipped as a static SPA. Per-studio configuration is **build-time**, 
    npx nx build app
    ```
 3. Deploy `dist/apps/app/` to any static host (Netlify, Vercel, Cloudflare Pages, S3+CloudFront). SPA fallback to `index.html` must be enabled (Angular routing is client-side).
-4. In the Supabase dashboard add the production origin to **Authentication → URL Configuration → Site URL** and **Additional Redirect URLs** (the magic-link redirect target is `${origin}/auth/callback`).
+4. In the Supabase dashboard add the production origin to **Authentication → URL Configuration → Site URL** and **Additional Redirect URLs** (magic link and Google both return to `${origin}/auth/callback`). Enable the Google provider there if the studio should offer it. Instagram is not a Supabase Auth provider.
 5. Apply the migrations against the production project:
    ```bash
    supabase link --project-ref <ref>
