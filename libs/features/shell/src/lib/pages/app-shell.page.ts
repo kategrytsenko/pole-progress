@@ -1,8 +1,14 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthStore } from '@org/auth';
 import { BrandingService } from '@org/data';
 import { ToastHostComponent } from '../toast/toast-host.component';
+
+interface ShellNavItem {
+  link: string;
+  label: string;
+  exact: boolean;
+}
 
 @Component({
   selector: 'pp-app-shell',
@@ -36,23 +42,28 @@ import { ToastHostComponent } from '../toast/toast-host.component';
           </a>
 
           <nav aria-label="Main" class="hidden items-center gap-2 sm:flex">
-            <a
-              routerLink="/app"
-              routerLinkActive="text-primary"
-              [routerLinkActiveOptions]="{ exact: true }"
-              class="rounded-md px-3 py-1.5 text-sm font-medium text-neutral-700 hover:text-primary"
-            >Прогрес</a>
-
-            @if (auth.isAdmin()) {
+            @for (item of navItems(); track item.link) {
               <a
-                routerLink="/admin"
+                [routerLink]="item.link"
                 routerLinkActive="text-primary"
+                [routerLinkActiveOptions]="{ exact: item.exact }"
                 class="rounded-md px-3 py-1.5 text-sm font-medium text-neutral-700 hover:text-primary"
-              >Адмін</a>
+              >{{ item.label }}</a>
             }
           </nav>
 
           <div class="flex items-center gap-3">
+            @switch (auth.role()) {
+              @case ('admin') {
+                <span class="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">Адмін</span>
+              }
+              @case ('instructor') {
+                <span class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">Інструктор</span>
+              }
+              @case ('student') {
+                <span class="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600">Клієнт</span>
+              }
+            }
             <span class="hidden text-xs text-neutral-500 sm:block">{{ auth.user()?.email }}</span>
             <button
               type="button"
@@ -63,6 +74,17 @@ import { ToastHostComponent } from '../toast/toast-host.component';
             </button>
           </div>
         </div>
+
+        <nav aria-label="Main" class="mx-auto flex max-w-6xl gap-2 overflow-x-auto px-4 pb-3 sm:hidden">
+          @for (item of navItems(); track item.link) {
+            <a
+              [routerLink]="item.link"
+              routerLinkActive="text-primary"
+              [routerLinkActiveOptions]="{ exact: item.exact }"
+              class="shrink-0 rounded-md px-3 py-1.5 text-sm font-medium text-neutral-700 hover:text-primary"
+            >{{ item.label }}</a>
+          }
+        </nav>
       </header>
 
       <main id="main-content" class="mx-auto max-w-6xl px-4 py-6">
@@ -77,6 +99,17 @@ export class AppShellPage {
   protected readonly auth = inject(AuthStore);
   protected readonly branding = inject(BrandingService);
   private readonly router = inject(Router);
+
+  protected readonly navItems = computed<ShellNavItem[]>(() => {
+    const items: ShellNavItem[] = [
+      { link: '/app', label: 'Прогрес', exact: true },
+      { link: '/app/schedule', label: 'Розклад', exact: true },
+    ];
+    if (this.auth.isAdmin()) {
+      items.push({ link: '/admin', label: 'Адмін', exact: false });
+    }
+    return items;
+  });
 
   protected studioInitial(): string {
     return this.branding.studioName().trim().charAt(0).toUpperCase() || 'P';

@@ -9,7 +9,23 @@ export const appRoutes: Route[] = [
   },
   {
     path: 'app',
-    loadChildren: () => import('@org/shell').then((m) => m.shellRoutes),
+    loadChildren: () =>
+      import('@org/shell').then((m) =>
+        m.createShellRoutes([
+          {
+            path: 'elements',
+            loadChildren: () => import('@org/element').then((mod) => mod.elementRoutes),
+          },
+          {
+            path: 'schedule',
+            loadChildren: () => import('@org/schedule').then((mod) => mod.scheduleRoutes),
+          },
+          {
+            path: '',
+            loadChildren: () => import('@org/dashboard').then((mod) => mod.dashboardRoutes),
+          },
+        ]),
+      ),
   },
   {
     path: 'forbidden',

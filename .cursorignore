@@ -1,0 +1,9 @@
+# Generated and dependency trees. Excluded so Cursor indexes source only.
+
+node_modules/
+dist/
+tmp/
+.nx/cache/
+.angular/
+supabase/.temp/
+coverage/

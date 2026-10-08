@@ -235,6 +235,8 @@ export class BrandingPage implements OnInit {
       studio_name: this.studioName().trim() || FALLBACK_NAME,
       primary_color: this.primaryColor(),
       logo_url: this.logoUrl(),
+      default_capacity: base?.default_capacity ?? 12,
+      cancel_cutoff_hours: base?.cancel_cutoff_hours ?? 12,
       created_at: base?.created_at ?? new Date(0).toISOString(),
     };
     this.branding.setSettings(draft);

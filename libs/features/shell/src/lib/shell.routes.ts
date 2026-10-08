@@ -1,20 +1,14 @@
 import { Routes } from '@angular/router';
 import { authOnlyGuard } from '@org/auth';
 
-export const shellRoutes: Routes = [
-  {
-    path: '',
-    canMatch: [authOnlyGuard],
-    loadComponent: () => import('./pages/app-shell.page').then((m) => m.AppShellPage),
-    children: [
-      {
-        path: 'elements',
-        loadChildren: () => import('@org/element').then((m) => m.elementRoutes),
-      },
-      {
-        path: '',
-        loadChildren: () => import('@org/dashboard').then((m) => m.dashboardRoutes),
-      },
-    ],
-  },
-];
+/** Layout route. Feature children are passed in by the app so shell does not depend on them. */
+export function createShellRoutes(children: Routes): Routes {
+  return [
+    {
+      path: '',
+      canMatch: [authOnlyGuard],
+      loadComponent: () => import('./pages/app-shell.page').then((m) => m.AppShellPage),
+      children,
+    },
+  ];
+}

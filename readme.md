@@ -53,6 +53,18 @@ The default role for any new user is `student`. To grant `admin`:
    ```
 4. Sign out + back in (so the role is re-fetched).
 
+## Promote a user to instructor
+
+`student` stays the database value for clients (the shell shows **Клієнт**). `instructor` is staff together with `admin` (`is_staff()`), but only an admin can change `profiles.role`. After that person has signed in once:
+
+```sql
+update public.profiles
+set role = 'instructor'
+where id = '<user-id>';
+```
+
+Use `role = 'admin'` for a full admin. Sign out and back in so `AuthStore` reloads the role. These statements run as the database owner; a client cannot self-promote through the API.
+
 ## Project layout
 
 ```

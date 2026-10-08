@@ -2,8 +2,6 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } 
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthStore } from '../auth.store';
 
-const TIMEOUT_MS = 8000;
-
 @Component({
   selector: 'pp-auth-callback',
   imports: [RouterLink],
@@ -55,15 +53,34 @@ export class AuthCallbackPage {
   protected readonly timedOut = signal(false);
 
   constructor() {
-    effect((onCleanup) => {
-      const session = this.auth.session();
-      if (session) {
-        const redirect = this.route.snapshot.queryParamMap.get('redirect') ?? '/app';
-        void this.router.navigateByUrl(redirect, { replaceUrl: true });
-      }
-
-      const timer = setTimeout(() => this.timedOut.set(true), TIMEOUT_MS);
-      onCleanup(() => clearTimeout(timer));
+    effect(() => {
+      if (!this.auth.session()) return;
+      const redirect = this.redirectTarget();
+      sessionStorage.removeItem('pp-auth-redirect');
+      void this.router.navigateByUrl(redirect, { replaceUrl: true });
     });
+
+    void this.complete();
+  }
+
+  private redirectTarget(): string {
+    return (
+      this.route.snapshot.queryParamMap.get('redirect')
+      ?? sessionStorage.getItem('pp-auth-redirect')
+      ?? '/app'
+    );
+  }
+
+  private async complete(): Promise<void> {
+    const params = this.route.snapshot.queryParamMap;
+    await this.auth.completeMagicLink({
+      code: params.get('code'),
+      tokenHash: params.get('token_hash'),
+      otpType: params.get('type'),
+    });
+
+    if (!this.auth.session() && !this.errorText()) {
+      this.timedOut.set(true);
+    }
   }
 }

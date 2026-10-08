@@ -21,7 +21,8 @@
       "@org/shell": ["libs/features/shell/src/index.ts"],
       "@org/dashboard": ["libs/features/dashboard/src/index.ts"],
       "@org/element": ["libs/features/element/src/index.ts"],
-      "@org/admin": ["libs/features/admin/src/index.ts"]
+      "@org/admin": ["libs/features/admin/src/index.ts"],
+      "@org/schedule": ["libs/features/schedule/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

@@ -5,4 +5,5 @@ export * from './lib/auth.store';
 export * from './lib/profiles.api';
 export * from './lib/auth-only.guard';
 export * from './lib/admin-only.guard';
+export * from './lib/staff-only.guard';
 export * from './lib/auth.routes';

@@ -13,6 +13,19 @@ export type SignInMagicLinkInput = {
   redirectTo?: string;
 };
 
+export type EmailOtpType =
+  | 'magiclink'
+  | 'email'
+  | 'signup'
+  | 'invite'
+  | 'recovery'
+  | 'email_change';
+
+export interface VerifyEmailOtpInput {
+  tokenHash: string;
+  type: EmailOtpType;
+}
+
 export interface SignUpPasswordInput {
   email: string;
   password: string;
@@ -29,6 +42,8 @@ export abstract class AuthApi {
   abstract signOut(): Promise<void>;
 
   abstract signInWithMagicLink(input: SignInMagicLinkInput): Promise<void>;
+  abstract verifyEmailOtp(input: VerifyEmailOtpInput): Promise<AuthSession>;
+  abstract exchangeCodeForSession(code: string): Promise<AuthSession>;
 
   // stream змін сесії
   abstract onAuthStateChange(cb: (session: AuthSession | null) => void): () => void;

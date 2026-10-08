@@ -1,0 +1,25 @@
+# Pole Progress
+
+Angular 21 SPA for a single pole-dance studio. One studio = one Supabase project + one deploy.
+
+## Stack
+
+- Angular 21: standalone components, signals, `ChangeDetectionStrategy.OnPush`. No NgModules.
+- Tailwind CSS for all styling. No component CSS files unless a utility class cannot express it.
+- Supabase: Postgres with RLS, Auth, Storage, and RPCs. Schema changes go in `supabase/migrations/` only.
+- Nx workspace. Run tasks with `npx nx <target> <project>` (for example `npx nx serve app`).
+
+## Code
+
+- Strict TypeScript. No `any`. Type public APIs and signal state explicitly.
+- Functional reactive style: a private `signal` for state, public `computed` for derived values, `inject()` for dependencies.
+- Standalone architecture. Feature UI lives in `libs/features/`. Shared auth, data, and Supabase clients live in `libs/core/`.
+- Respect module boundaries in `eslint.config.mjs`. `@org/data` must not depend on `@org/auth`.
+- Keep files small. Add a function, type, or component only when a second caller needs it.
+- DB rows store storage paths. Resolve private media with signed URLs at read time.
+
+## Responses
+
+- Write production-ready code: typed, OnPush, and consistent with the surrounding file.
+- Prefer editing the existing file over a new abstraction.
+- Run Nx for lint, test, and build. Do not invent npm scripts.

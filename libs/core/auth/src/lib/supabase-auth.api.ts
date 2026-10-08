@@ -8,6 +8,7 @@ import {
   type SignInMagicLinkInput,
   type SignInPasswordInput,
   type SignUpPasswordInput,
+  type VerifyEmailOtpInput,
 } from './auth-api';
 
 @Injectable({ providedIn: 'root' })
@@ -50,6 +51,23 @@ export class SupabaseAuthApi extends AuthApi {
       options: redirectTo ? { emailRedirectTo: redirectTo } : undefined,
     });
     if (error) throw error;
+  }
+
+  async verifyEmailOtp({ tokenHash, type }: VerifyEmailOtpInput): Promise<AuthSession> {
+    const { data, error } = await this.client.auth.verifyOtp({
+      token_hash: tokenHash,
+      type,
+    });
+    if (error) throw error;
+    if (!data.session) throw new Error('No session returned from verifyOtp');
+    return data.session;
+  }
+
+  async exchangeCodeForSession(code: string): Promise<AuthSession> {
+    const { data, error } = await this.client.auth.exchangeCodeForSession(code);
+    if (error) throw error;
+    if (!data.session) throw new Error('No session returned from exchangeCodeForSession');
+    return data.session;
   }
 
   onAuthStateChange(cb: (session: AuthSession | null) => void): () => void {

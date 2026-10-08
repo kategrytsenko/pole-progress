@@ -123,10 +123,9 @@ export class SignInPage {
     const email = this.emailValue.trim();
     if (!email || !this.canSubmit()) return;
 
-    const redirectQuery = this.route.snapshot.queryParamMap.get('redirect');
-    const redirectTo = `${window.location.origin}/auth/callback${
-      redirectQuery ? `?redirect=${encodeURIComponent(redirectQuery)}` : ''
-    }`;
+    const redirectQuery = this.route.snapshot.queryParamMap.get('redirect') ?? '/app';
+    sessionStorage.setItem('pp-auth-redirect', redirectQuery);
+    const redirectTo = `${window.location.origin}/auth/callback`;
 
     await this.auth.signInMagicLink(email, redirectTo);
     if (!this.auth.error()) this.sentTo.set(email);
