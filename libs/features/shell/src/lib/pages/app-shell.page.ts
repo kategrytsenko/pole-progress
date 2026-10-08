@@ -123,6 +123,15 @@ export class AppShellPage {
         dividerBefore: true,
       },
     ];
+    if (this.auth.isStaff()) {
+      items.push({
+        link: '/app/students',
+        label: 'Учні',
+        exact: false,
+        emphasis: 'admin',
+        dividerBefore: true,
+      });
+    }
     if (this.auth.isAdmin()) {
       items.push({ link: '/admin', label: 'Адмін', exact: false, emphasis: 'admin' });
     }

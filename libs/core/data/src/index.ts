@@ -3,6 +3,7 @@ export * from './lib/attempt-stage';
 export * from './lib/settings.api';
 export * from './lib/catalog.api';
 export * from './lib/attempts.api';
+export * from './lib/students.api';
 export * from './lib/media.api';
 export * from './lib/branding.service';
 export * from './lib/schedule.api';

@@ -27,32 +27,28 @@ export class AttemptsApi {
 
   async listMyAttemptsForElement(elementId: string): Promise<ElementAttempt[]> {
     const uid = await this.requireUid();
+    return this.queryAttemptsForElement(elementId, uid);
+  }
 
-    const { data, error } = await this.client
-      .from('element_attempts')
-      .select(ATTEMPT_COLUMNS)
-      .eq('element_id', elementId)
-      .eq('user_id', uid)
-      .order('date', { ascending: false })
-      .order('created_at', { ascending: false })
-      .returns<ElementAttemptRow[]>();
-
-    if (error) throw error;
-    return (data ?? []).map(mapElementAttempt);
+  /**
+   * Attempts for one element and one student.
+   * Staff can read any student in this studio. A client only receives their own rows.
+   */
+  async listAttemptsForElement(elementId: string, userId: string): Promise<ElementAttempt[]> {
+    await this.requireUid();
+    return this.queryAttemptsForElement(elementId, userId);
   }
 
   /** Every attempt the current student has logged. The diary store keeps the latest stage per element. */
   async listMyProgressRows(): Promise<AttemptProgressRow[]> {
     const uid = await this.requireUid();
+    return this.queryProgressRows(uid);
+  }
 
-    const { data, error } = await this.client
-      .from('element_attempts')
-      .select(PROGRESS_COLUMNS)
-      .eq('user_id', uid)
-      .returns<AttemptProgressRow[]>();
-
-    if (error) throw error;
-    return data ?? [];
+  /** Stage rows for one student. Staff read the studio; a client only receives their own rows. */
+  async listProgressRows(userId: string): Promise<AttemptProgressRow[]> {
+    await this.requireUid();
+    return this.queryProgressRows(userId);
   }
 
   async createAttempt(input: CreateAttemptInput): Promise<ElementAttempt> {
@@ -128,6 +124,34 @@ export class AttemptsApi {
       .eq('id', id);
 
     if (error) throw error;
+  }
+
+  private async queryAttemptsForElement(
+    elementId: string,
+    userId: string,
+  ): Promise<ElementAttempt[]> {
+    const { data, error } = await this.client
+      .from('element_attempts')
+      .select(ATTEMPT_COLUMNS)
+      .eq('element_id', elementId)
+      .eq('user_id', userId)
+      .order('date', { ascending: false })
+      .order('created_at', { ascending: false })
+      .returns<ElementAttemptRow[]>();
+
+    if (error) throw error;
+    return (data ?? []).map(mapElementAttempt);
+  }
+
+  private async queryProgressRows(userId: string): Promise<AttemptProgressRow[]> {
+    const { data, error } = await this.client
+      .from('element_attempts')
+      .select(PROGRESS_COLUMNS)
+      .eq('user_id', userId)
+      .returns<AttemptProgressRow[]>();
+
+    if (error) throw error;
+    return data ?? [];
   }
 
   private async requireUid(): Promise<string> {

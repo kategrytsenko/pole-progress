@@ -10,6 +10,7 @@ import {
   MediaApi,
   type MediaItem,
   type MediaType,
+  StudentsApi,
 } from '@org/data';
 import { buildAttemptTimeline, type AttemptTimelineEntry } from './timeline';
 
@@ -19,19 +20,23 @@ export interface MediaItemView extends MediaItem {
 
 interface ElementState {
   element: Element | null;
+  studentName: string | null;
   attempts: ElementAttempt[];
   mediaByAttempt: ReadonlyMap<string, MediaItemView[]>;
   loading: boolean;
   saving: boolean;
+  savingFeedbackId: string | null;
   error: string | null;
 }
 
 const INITIAL_STATE: ElementState = {
   element: null,
+  studentName: null,
   attempts: [],
   mediaByAttempt: new Map<string, MediaItemView[]>(),
   loading: true,
   saving: false,
+  savingFeedbackId: null,
   error: null,
 };
 
@@ -50,11 +55,14 @@ function toErrorMessage(err: unknown, fallback: string): string {
 export class ElementStore {
   private readonly catalog = inject(CatalogApi);
   private readonly attempts = inject(AttemptsApi);
+  private readonly students = inject(StudentsApi);
   private readonly media = inject(MediaApi);
 
   private readonly state = signal<ElementState>(INITIAL_STATE);
+  private loadGeneration = 0;
 
   readonly element = computed<Element | null>(() => this.state().element);
+  readonly studentName = computed<string | null>(() => this.state().studentName);
   readonly timeline = computed<AttemptTimelineEntry<MediaItemView>[]>(() =>
     buildAttemptTimeline(this.state().attempts, this.state().mediaByAttempt),
   );
@@ -64,36 +72,64 @@ export class ElementStore {
   });
   readonly loading = computed<boolean>(() => this.state().loading);
   readonly saving = computed<boolean>(() => this.state().saving);
+  readonly savingFeedbackId = computed<string | null>(() => this.state().savingFeedbackId);
   readonly error = computed<string | null>(() => this.state().error);
 
   mediaFor(attemptId: string): readonly MediaItemView[] {
     return this.state().mediaByAttempt.get(attemptId) ?? [];
   }
 
-  async load(elementId: string): Promise<void> {
-    this.state.update((s) => ({ ...s, loading: true, error: null }));
+  async load(elementId: string, studentId?: string | null): Promise<void> {
+    const generation = ++this.loadGeneration;
+    const reviewId = studentId?.trim() || null;
+    this.state.update((s) => ({ ...s, loading: true, error: null, studentName: null }));
 
     try {
-      const [element, attempts] = await Promise.all([
+      const [element, attempts, student] = await Promise.all([
         this.catalog.getElement(elementId),
-        this.attempts.listMyAttemptsForElement(elementId),
+        reviewId
+          ? this.attempts.listAttemptsForElement(elementId, reviewId)
+          : this.attempts.listMyAttemptsForElement(elementId),
+        reviewId ? this.students.getStudent(reviewId) : Promise.resolve(null),
       ]);
+      if (generation !== this.loadGeneration) return;
 
       const mediaByAttempt = await this.loadMediaForAttempts(attempts);
+      if (generation !== this.loadGeneration) return;
 
       this.state.update((s) => ({
         ...s,
         element,
+        studentName: student?.name ?? null,
         attempts,
         mediaByAttempt,
         loading: false,
       }));
     } catch (err: unknown) {
+      if (generation !== this.loadGeneration) return;
       this.state.update((s) => ({
         ...s,
         loading: false,
         error: toErrorMessage(err, 'Failed to load element'),
       }));
+    }
+  }
+
+  /** Staff-only write. The student's attempt text and stage stay unchanged. */
+  async saveInstructorFeedback(attemptId: string, body: string): Promise<void> {
+    this.state.update((s) => ({ ...s, savingFeedbackId: attemptId }));
+    try {
+      const feedback = await this.attempts.upsertInstructorFeedback({ attemptId, body });
+      this.state.update((s) => ({
+        ...s,
+        savingFeedbackId: null,
+        attempts: s.attempts.map((existing) =>
+          existing.id === attemptId ? { ...existing, instructor_feedback: feedback } : existing,
+        ),
+      }));
+    } catch (err: unknown) {
+      this.state.update((s) => ({ ...s, savingFeedbackId: null }));
+      throw err;
     }
   }
 

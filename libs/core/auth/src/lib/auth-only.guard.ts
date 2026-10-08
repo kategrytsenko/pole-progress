@@ -8,7 +8,9 @@ export const authOnlyGuard: CanMatchFn = (_route, segments) => {
 
   if (auth.isAuthed()) return true;
 
-  const target = '/' + segments.map((s) => s.path).join('/');
+  const attempted = router.getCurrentNavigation()?.extractedUrl.toString();
+  const fallback = '/' + segments.map((segment) => segment.path).join('/');
+  const target = attempted && attempted !== '/' ? attempted : fallback;
   return router.createUrlTree(['/sign-in'], {
     queryParams: target && target !== '/' ? { redirect: target } : undefined,
   });

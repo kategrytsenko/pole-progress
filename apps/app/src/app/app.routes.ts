@@ -1,5 +1,5 @@
 import { Route } from '@angular/router';
-import { authRoutes } from '@org/auth';
+import { authRoutes, staffOnlyGuard } from '@org/auth';
 
 export const appRoutes: Route[] = [
   ...authRoutes,
@@ -19,6 +19,11 @@ export const appRoutes: Route[] = [
           {
             path: 'schedule',
             loadChildren: () => import('@org/schedule').then((mod) => mod.scheduleRoutes),
+          },
+          {
+            path: 'students',
+            canMatch: [staffOnlyGuard],
+            loadChildren: () => import('@org/students').then((mod) => mod.studentsRoutes),
           },
           {
             path: '',

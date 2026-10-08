@@ -21,8 +21,8 @@ todos:
     content: "Session 5: recent attempts across elements, filter the diary grid by stage"
     status: pending
   - id: s6-instructor-diary
-    content: "Session 6: instructor notes on a client's diary, staff RLS, no branding/role access"
-    status: pending
+    content: "Session 6: /app/students diary for staff, instructor notes, staff read RLS"
+    status: completed
   - id: s7-passes-optional
     content: "Session 7 (optional): My Passes page in the secondary nav"
     status: pending
@@ -94,9 +94,10 @@ One session per chat. Diary sessions before optional studio sessions.
 
 ### Session 6 — instructor on the student's diary
 
-- Staff can open one client's element timeline (query param or `/admin/clients/:id/progress`)
-- Instructor note distinct from the student's own attempt note
-- RLS: staff select/insert notes; clients stay on their own rows; instructors still cannot edit branding, roles, or pass products
+Done. Staff open **Учні** (`/app/students`, `staffOnlyGuard`). A student row opens that client's element grid; an element opens the same chronological timeline with a comment box. Students still edit only their own attempts and see coach notes read-only.
+
+- `StudentsApi.listStudents()` / `getStudent()`, `AttemptsApi.listProgressRows()` / `listAttemptsForElement()`
+- Migration `202610080005_staff_read_student_diary.sql`: staff `select` on attempts, media rows, and the private media bucket. One project is one studio, so `is_staff()` is the boundary. Notes stay on `attempt_instructor_notes` (staff insert/update). Clients keep their own attempt writes. Branding and role changes stay admin-only.
 
 ### Session 7 — optional passes page
 

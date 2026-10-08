@@ -7,7 +7,9 @@ export const staffOnlyGuard: CanMatchFn = (_route, segments) => {
   const router = inject(Router);
 
   if (!auth.isAuthed()) {
-    const target = '/' + segments.map((s) => s.path).join('/');
+    const attempted = router.getCurrentNavigation()?.extractedUrl.toString();
+    const fallback = '/' + segments.map((segment) => segment.path).join('/');
+    const target = attempted && attempted !== '/' ? attempted : fallback;
     return router.createUrlTree(['/sign-in'], {
       queryParams: target && target !== '/' ? { redirect: target } : undefined,
     });

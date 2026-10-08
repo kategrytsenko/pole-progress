@@ -1,13 +1,15 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   Input,
   OnInit,
   ViewChild,
   inject,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DatePipe } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import {
   ATTEMPT_STAGE_LABELS,
   ATTEMPT_STAGE_MARK_CLASS,
@@ -16,11 +18,13 @@ import {
   type AttemptStage,
   type ElementAttempt,
   stageRank,
+  studentLabel,
 } from '@org/data';
 import { DashboardStore } from '@org/dashboard';
 import { StateBlockComponent, ToastService } from '@org/shell';
 import { AddAttemptDialogComponent } from '../components/add-attempt-dialog.component';
 import { InstructorFeedbackComponent } from '../components/instructor-feedback.component';
+import { InstructorNoteFormComponent } from '../components/instructor-note-form.component';
 import { ElementStore, type MediaItemView } from '../element.store';
 
 type StepState = 'current' | 'reached' | 'upcoming';
@@ -32,6 +36,7 @@ type StepState = 'current' | 'reached' | 'upcoming';
     RouterLink,
     AddAttemptDialogComponent,
     InstructorFeedbackComponent,
+    InstructorNoteFormComponent,
     StateBlockComponent,
   ],
   providers: [ElementStore],
@@ -39,13 +44,13 @@ type StepState = 'current' | 'reached' | 'upcoming';
   template: `
     <section class="space-y-5">
       <a
-        routerLink="/app"
+        [routerLink]="backLink"
         class="inline-flex items-center gap-1 text-sm font-medium text-neutral-600 transition hover:text-primary"
       >
         <svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4" aria-hidden="true">
           <path fill-rule="evenodd" d="M12.707 4.293a1 1 0 010 1.414L8.414 10l4.293 4.293a1 1 0 11-1.414 1.414l-5-5a1 1 0 010-1.414l5-5a1 1 0 011.414 0z" clip-rule="evenodd" />
         </svg>
-        До щоденника
+        {{ reviewing ? 'До щоденника учня' : 'До щоденника' }}
       </a>
 
       @if (store.loading()) {
@@ -55,7 +60,9 @@ type StepState = 'current' | 'reached' | 'upcoming';
       } @else if (store.element(); as element) {
         <header class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div class="space-y-2">
-            <p class="text-xs font-semibold uppercase tracking-wide text-primary">Щоденник</p>
+            <p class="text-xs font-semibold uppercase tracking-wide text-primary">
+              {{ reviewing ? 'Щоденник · ' + studentLabel(store.studentName()) : 'Щоденник' }}
+            </p>
             <div class="flex flex-wrap items-center gap-3">
               <h1 class="text-2xl font-semibold tracking-tight">{{ element.name }}</h1>
               @if (store.latestStage(); as stage) {
@@ -66,16 +73,22 @@ type StepState = 'current' | 'reached' | 'upcoming';
             </div>
           </div>
 
-          <button
-            type="button"
-            (click)="onAddAttempt()"
-            class="inline-flex items-center gap-2 self-start rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
-          >
-            <svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4" aria-hidden="true">
-              <path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" />
-            </svg>
-            Додати спробу
-          </button>
+          @if (reviewing) {
+            <p class="max-w-sm text-sm text-neutral-600">
+              Спроби змінює учень. Коментар інструктора можна додати до кожного запису.
+            </p>
+          } @else {
+            <button
+              type="button"
+              (click)="onAddAttempt()"
+              class="inline-flex items-center gap-2 self-start rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
+            >
+              <svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4" aria-hidden="true">
+                <path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" />
+              </svg>
+              Додати спробу
+            </button>
+          }
         </header>
 
         @if (store.latestStage(); as latest) {
@@ -111,7 +124,9 @@ type StepState = 'current' | 'reached' | 'upcoming';
           @if (store.timeline().length === 0) {
             <pp-state-block
               mode="empty"
-              message="Поки що немає жодної спроби. Натисни «Додати спробу», щоб почати щоденник цього елемента."
+              [message]="reviewing
+                ? 'У цього учня ще немає спроб цього елемента.'
+                : 'Поки що немає жодної спроби. Натисни «Додати спробу», щоб почати щоденник цього елемента.'"
             />
           } @else {
             <ol class="relative space-y-6 border-l-2 border-neutral-200 pl-6">
@@ -136,28 +151,30 @@ type StepState = 'current' | 'reached' | 'upcoming';
                           {{ label(entry.attempt.stage) }}
                         </span>
                       </div>
-                      <div class="flex items-center">
-                        <button
-                          type="button"
-                          (click)="onEditAttempt(entry.attempt)"
-                          aria-label="Редагувати спробу"
-                          class="rounded p-1 text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-700"
-                        >
-                          <svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4" aria-hidden="true">
-                            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                          </svg>
-                        </button>
-                        <button
-                          type="button"
-                          (click)="onDeleteAttempt(entry.attempt.id)"
-                          aria-label="Видалити спробу"
-                          class="rounded p-1 text-neutral-400 transition hover:bg-red-50 hover:text-red-600"
-                        >
-                          <svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4" aria-hidden="true">
-                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-1 1v1H5a1 1 0 100 2h10a1 1 0 100-2h-3V3a1 1 0 00-1-1H9zM6 8a1 1 0 011 1v6a1 1 0 11-2 0V9a1 1 0 011-1zm4 0a1 1 0 011 1v6a1 1 0 11-2 0V9a1 1 0 011-1zm5 0a1 1 0 00-1 1v6a1 1 0 102 0V9a1 1 0 00-1-1z" clip-rule="evenodd" />
-                          </svg>
-                        </button>
-                      </div>
+                      @if (!reviewing) {
+                        <div class="flex items-center">
+                          <button
+                            type="button"
+                            (click)="onEditAttempt(entry.attempt)"
+                            aria-label="Редагувати спробу"
+                            class="rounded p-1 text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-700"
+                          >
+                            <svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4" aria-hidden="true">
+                              <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            (click)="onDeleteAttempt(entry.attempt.id)"
+                            aria-label="Видалити спробу"
+                            class="rounded p-1 text-neutral-400 transition hover:bg-red-50 hover:text-red-600"
+                          >
+                            <svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4" aria-hidden="true">
+                              <path fill-rule="evenodd" d="M9 2a1 1 0 00-1 1v1H5a1 1 0 100 2h10a1 1 0 100-2h-3V3a1 1 0 00-1-1H9zM6 8a1 1 0 011 1v6a1 1 0 11-2 0V9a1 1 0 011-1zm4 0a1 1 0 011 1v6a1 1 0 11-2 0V9a1 1 0 011-1zm5 0a1 1 0 00-1 1v6a1 1 0 102 0V9a1 1 0 00-1-1z" clip-rule="evenodd" />
+                            </svg>
+                          </button>
+                        </div>
+                      }
                     </header>
 
                     @if (entry.previousStage === null) {
@@ -176,7 +193,15 @@ type StepState = 'current' | 'reached' | 'upcoming';
                       <p class="mt-3 whitespace-pre-wrap text-sm text-neutral-700">{{ entry.attempt.note }}</p>
                     }
 
-                    @if (entry.attempt.instructor_feedback; as feedback) {
+                    @if (reviewing) {
+                      <pp-instructor-note-form
+                        class="mt-3 block"
+                        [attemptId]="entry.attempt.id"
+                        [feedback]="entry.attempt.instructor_feedback"
+                        [saving]="store.savingFeedbackId() === entry.attempt.id"
+                        (saveNote)="onSaveFeedback(entry.attempt.id, $event)"
+                      />
+                    } @else if (entry.attempt.instructor_feedback; as feedback) {
                       <pp-instructor-feedback class="mt-3 block" [feedback]="feedback" />
                     }
 
@@ -217,11 +242,13 @@ type StepState = 'current' | 'reached' | 'upcoming';
           }
         </section>
 
-        <pp-add-attempt-dialog
-          #dialog
-          (created)="onAttemptCreated($event)"
-          (updated)="onAttemptUpdated()"
-        />
+        @if (!reviewing) {
+          <pp-add-attempt-dialog
+            #dialog
+            (created)="onAttemptCreated($event)"
+            (updated)="onAttemptUpdated()"
+          />
+        }
       } @else {
         <pp-state-block mode="empty" message="Елемент не знайдено." />
       }
@@ -233,13 +260,43 @@ export class ElementPage implements OnInit {
 
   protected readonly store = inject(ElementStore);
   protected readonly stages = ATTEMPT_STAGES;
+  protected readonly studentLabel = studentLabel;
+  protected reviewing = false;
+  protected backLink: string | readonly string[] = '/app';
   private readonly dashboard = inject(DashboardStore);
   private readonly toasts = inject(ToastService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly destroyRef = inject(DestroyRef);
 
   @ViewChild('dialog') private dialog?: AddAttemptDialogComponent;
 
   ngOnInit(): void {
-    void this.store.load(this.id);
+    this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      const studentId = this.studentIdFromRoute();
+      this.reviewing = studentId !== null;
+      this.backLink = studentId ? ['/app/students', studentId] : '/app';
+      const elementId = this.route.snapshot.paramMap.get('id') ?? this.id;
+      void this.store.load(elementId, studentId);
+    });
+  }
+
+  protected async onSaveFeedback(attemptId: string, body: string): Promise<void> {
+    try {
+      await this.store.saveInstructorFeedback(attemptId, body);
+      this.toasts.success('Коментар збережено');
+    } catch (err: unknown) {
+      this.toasts.error(err instanceof Error ? err.message : 'Не вдалося зберегти коментар');
+    }
+  }
+
+  private studentIdFromRoute(): string | null {
+    let current: ActivatedRoute | null = this.route;
+    while (current) {
+      const studentId = current.snapshot.paramMap.get('studentId')?.trim();
+      if (studentId) return studentId;
+      current = current.parent;
+    }
+    return null;
   }
 
   protected onAddAttempt(): void {

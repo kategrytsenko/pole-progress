@@ -22,7 +22,8 @@
       "@org/dashboard": ["libs/features/dashboard/src/index.ts"],
       "@org/element": ["libs/features/element/src/index.ts"],
       "@org/admin": ["libs/features/admin/src/index.ts"],
-      "@org/schedule": ["libs/features/schedule/src/index.ts"]
+      "@org/schedule": ["libs/features/schedule/src/index.ts"],
+      "@org/students": ["libs/features/students/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]
