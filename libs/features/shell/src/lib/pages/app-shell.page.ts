@@ -4,10 +4,14 @@ import { AuthStore } from '@org/auth';
 import { BrandingService } from '@org/data';
 import { ToastHostComponent } from '../toast/toast-host.component';
 
+type NavEmphasis = 'primary' | 'optional' | 'admin';
+
 interface ShellNavItem {
   link: string;
   label: string;
   exact: boolean;
+  emphasis: NavEmphasis;
+  dividerBefore?: boolean;
 }
 
 @Component({
@@ -43,11 +47,15 @@ interface ShellNavItem {
 
           <nav aria-label="Main" class="hidden items-center gap-2 sm:flex">
             @for (item of navItems(); track item.link) {
+              @if (item.dividerBefore) {
+                <span class="mx-1 h-4 w-px shrink-0 bg-neutral-200" aria-hidden="true"></span>
+              }
               <a
                 [routerLink]="item.link"
-                routerLinkActive="text-primary"
+                routerLinkActive
+                #desktopLink="routerLinkActive"
                 [routerLinkActiveOptions]="{ exact: item.exact }"
-                class="rounded-md px-3 py-1.5 text-sm font-medium text-neutral-700 hover:text-primary"
+                [class]="navLinkClass(item.emphasis, desktopLink.isActive)"
               >{{ item.label }}</a>
             }
           </nav>
@@ -77,11 +85,15 @@ interface ShellNavItem {
 
         <nav aria-label="Main" class="mx-auto flex max-w-6xl gap-2 overflow-x-auto px-4 pb-3 sm:hidden">
           @for (item of navItems(); track item.link) {
+            @if (item.dividerBefore) {
+              <span class="mx-1 h-4 w-px shrink-0 self-center bg-neutral-200" aria-hidden="true"></span>
+            }
             <a
               [routerLink]="item.link"
-              routerLinkActive="text-primary"
+              routerLinkActive
+              #mobileLink="routerLinkActive"
               [routerLinkActiveOptions]="{ exact: item.exact }"
-              class="shrink-0 rounded-md px-3 py-1.5 text-sm font-medium text-neutral-700 hover:text-primary"
+              [class]="'shrink-0 ' + navLinkClass(item.emphasis, mobileLink.isActive)"
             >{{ item.label }}</a>
           }
         </nav>
@@ -102,14 +114,36 @@ export class AppShellPage {
 
   protected readonly navItems = computed<ShellNavItem[]>(() => {
     const items: ShellNavItem[] = [
-      { link: '/app', label: 'Прогрес', exact: true },
-      { link: '/app/schedule', label: 'Розклад', exact: true },
+      { link: '/app', label: 'Щоденник', exact: true, emphasis: 'primary' },
+      {
+        link: '/app/schedule',
+        label: 'Розклад',
+        exact: true,
+        emphasis: 'optional',
+        dividerBefore: true,
+      },
     ];
     if (this.auth.isAdmin()) {
-      items.push({ link: '/admin', label: 'Адмін', exact: false });
+      items.push({ link: '/admin', label: 'Адмін', exact: false, emphasis: 'admin' });
     }
     return items;
   });
+
+  protected navLinkClass(emphasis: NavEmphasis, active: boolean): string {
+    if (emphasis === 'primary') {
+      return active
+        ? 'rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-white'
+        : 'rounded-md bg-primary/10 px-3 py-1.5 text-sm font-semibold text-primary';
+    }
+    if (emphasis === 'optional') {
+      return active
+        ? 'rounded-md px-2.5 py-1.5 text-xs font-medium text-neutral-800 underline decoration-neutral-300 underline-offset-4'
+        : 'rounded-md px-2.5 py-1.5 text-xs font-medium text-neutral-400 hover:text-neutral-700';
+    }
+    return active
+      ? 'rounded-md px-3 py-1.5 text-sm font-semibold text-primary'
+      : 'rounded-md px-3 py-1.5 text-sm font-medium text-neutral-700 hover:text-primary';
+  }
 
   protected studioInitial(): string {
     return this.branding.studioName().trim().charAt(0).toUpperCase() || 'P';

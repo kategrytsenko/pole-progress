@@ -42,12 +42,23 @@ export interface Element {
   created_at: string;
 }
 
+/** Self-assessment stored on each diary attempt, from first tries through a reliable hold. */
+export type AttemptStage = 'trying' | 'in_progress' | 'held' | 'mastered';
+
 export interface ElementAttempt {
   id: string;
   element_id: string;
   user_id: string;
   date: string;
   note: string | null;
+  stage: AttemptStage;
+  created_at: string;
+}
+
+export interface AttemptProgressRow {
+  element_id: string;
+  stage: AttemptStage;
+  date: string;
   created_at: string;
 }
 
@@ -64,6 +75,7 @@ export interface CreateAttemptInput {
   elementId: string;
   date: string;
   note?: string | null;
+  stage: AttemptStage;
 }
 
 export interface CreateCategoryInput {

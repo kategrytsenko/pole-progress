@@ -1,6 +1,8 @@
 # Pole Progress (MVP)
 
-Single-tenant white-label app for pole-dance studios. One studio = one Supabase project + one Angular deploy.
+The product is a student's personal training diary. Log an attempt on a pole element, mark a stage (`trying`, `in_progress`, `held`, `mastered`), and review a chronological photo and video timeline.
+
+Schedule and class booking stay in the app as an optional secondary area (`/app/schedule`). One studio = one Supabase project + one Angular deploy.
 
 Stack: **Angular 21** (standalone + signals + OnPush) · **Nx 22** monorepo · **Tailwind 3** · **Supabase** (Postgres + Auth + Storage + RLS).
 
@@ -78,8 +80,9 @@ libs/
     data/                   # @org/data      — domain models, Catalog/Attempts/Media/Settings APIs, BrandingService
   features/
     shell/                  # @org/shell     — AppShellPage, ToastService, StateBlockComponent
-    dashboard/              # @org/dashboard — DashboardStore + DashboardPage (catalog grid)
-    element/                # @org/element   — ElementStore + ElementPage + AddAttemptDialog
+    dashboard/              # @org/dashboard — diary home: stage summary + element grid
+    element/                # @org/element   — chronological attempt timeline + stage when logging
+    schedule/               # @org/schedule  — optional week list, book and cancel
     admin/                  # @org/admin     — Categories / Elements / Branding pages
 supabase/
   migrations/               # ordered SQL migrations

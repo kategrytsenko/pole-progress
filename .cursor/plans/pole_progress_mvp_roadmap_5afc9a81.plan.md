@@ -1,242 +1,123 @@
 ---
 name: Pole Progress MVP Roadmap
-overview: Keep the working trick-catalog app as the Progress pillar, then add a three-role studio layer (client / instructor / admin) with Postgres RPCs for booking, capacity, and pass deduction. Ship over ~8 small Cursor sessions in four weeks so each chat stays within free-plan limits.
+overview: The product is the student's personal training diary. Schedule, booking, and passes stay in the repo as an optional secondary area. Ship the remaining diary depth first, then studio admin only if it still earns a place.
 todos:
   - id: s1-roles
     content: "Session 1: instructor role, is_staff RLS, AuthStore/guards, Client/Instructor copy, shell nav"
-    status: pending
+    status: completed
   - id: s2-schema
     content: "Session 2: class_types/sessions, bookings, pass_products/client_passes migrations + TS models/API stubs + seed"
-    status: pending
+    status: completed
   - id: s3-calendar
     content: "Session 3: @org/schedule week list + listSessionsInRange + /app/schedule route"
+    status: completed
+  - id: booking-optional
+    content: "Book/cancel RPCs, capacity UI, and pass balances — kept, demoted to the optional Schedule nav item"
+    status: completed
+  - id: s4-diary-stages
+    content: "Session 4: attempt stages, chronological media timeline, diary-first shell nav"
+    status: completed
+  - id: s5-diary-home
+    content: "Session 5: recent attempts across elements, filter the diary grid by stage"
     status: pending
-  - id: s4-book-rpc
-    content: "Session 4: book_session/cancel_booking RPCs, BookingsApi, capacity UI, cancel cutoff"
+  - id: s6-instructor-diary
+    content: "Session 6: instructor notes on a client's diary, staff RLS, no branding/role access"
     status: pending
-  - id: s5-client-passes
-    content: "Session 5: @org/passes MyPassesPage + remaining/validity"
+  - id: s7-passes-optional
+    content: "Session 7 (optional): My Passes page in the secondary nav"
     status: pending
-  - id: s6-admin-classes-passes
-    content: "Session 6: admin classes CRUD + issue passes"
-    status: pending
-  - id: s7-people
-    content: "Session 7: admin clients/instructors, admin-only role assignment"
-    status: pending
-  - id: s8-progress-polish
-    content: "Session 8: attempt stages, instructor notes RLS/UI, build/lint, readme"
+  - id: s8-admin-optional
+    content: "Session 8 (optional): admin classes, clients, instructors, then build/lint/readme"
     status: pending
 isProject: false
 ---
 
-# Pole Progress MVP architectural roadmap
+# Pole Progress roadmap
 
-## Audit: what already works
+## Product focus
 
-The repo is a **single-tenant trick catalog**, not a studio-management app yet. Auth, branding, and progress logging are real; schedule, bookings, passes, instructors, and client admin are absent.
+The primary value is the **student's personal training diary and progress tracker**.
 
-**Keep and reuse (do not rewrite):**
-- Bootstrap: [`apps/app/src/main.ts`](apps/app/src/main.ts), [`apps/app/src/app/app.config.ts`](apps/app/src/app/app.config.ts), [`apps/app/src/app/app.routes.ts`](apps/app/src/app/app.routes.ts)
-- Auth: magic-link in [`libs/core/auth`](libs/core/auth), `AuthStore` signals, `authOnlyGuard` / `adminOnlyGuard`
-- Data: [`libs/core/data`](libs/core/data) (`CatalogApi`, `AttemptsApi`, `MediaApi`, `BrandingService`)
-- UI: [`libs/features/shell`](libs/features/shell) (`AppShellPage`, `ToastService`, `StateBlockComponent`), catalog dashboard + element attempts, admin categories/elements/branding
-- Patterns: standalone + `inject()` + signals + `OnPush` + Tailwind; Nx tags `scope:app|feature|core`; `@org/data` must not import `@org/auth`
+- `/app` is the diary home (element grid, current stage per element).
+- `/app/elements/:id` is the element diary: log an attempt with a stage, then read a chronological photo/video timeline.
+- Stages are `trying | in_progress | held | mastered`. The current stage is the **latest attempt by date**, so a later regression replaces an older "mastered".
 
-**Current domain (Postgres):** `profiles.role` is only `'admin' | 'student'` ([`supabase/migrations/202601240001_init.sql`](supabase/migrations/202601240001_init.sql)). RLS is own-row for attempts/media; catalog/settings writes are admin-only ([`202601240002_rls.sql`](supabase/migrations/202601240002_rls.sql)). Default new user = `student`. Admin is a one-time SQL update.
-
-**Gaps vs requested MVP:**
-
-| Pillar | Status |
-|---|---|
-| Auth + Client vs Admin | Partial: no `instructor`; UI says student; admin cannot list/assign clients |
-| Schedule + bookings + cancel | Missing |
-| Passes + remaining classes + deduct on book | Missing |
-| Progress (tricks, stages, instructor notes) | Partial: client attempts + notes; no stages; instructors cannot see/edit client progress |
-| Admin: classes, instructors, passes, capacity, clients | Missing (only catalog + branding) |
+Schedule, bookings, and passes **stay in the codebase**. They are not deleted. The shell shows **Щоденник** as the primary item and **Розклад** as a quieter optional item. Do not put new studio-ops work ahead of the diary.
 
 ```mermaid
 flowchart TB
-  subgraph today [Exists today]
-    Auth[Magic link AuthStore]
-    Catalog[Elements catalog]
-    Attempts[Client attempts plus media]
-    AdminCat[Admin categories branding]
+  subgraph primary [Primary experience]
+    Diary["/app diary home"]
+    Element["/app/elements/:id timeline"]
+    Attempt["Log attempt with stage plus media"]
   end
-  subgraph missing [Add for studio MVP]
-    Roles[instructor role plus staff guards]
-    Sessions[Class sessions plus capacity]
-    Book[Book cancel RPCs]
-    Passes[Pass products plus client_passes]
-    StaffAdmin[Clients instructors classes passes]
+  subgraph optional [Optional studio layer]
+    Schedule["/app/schedule week list"]
+    Book["book_session / cancel_booking"]
+    Passes["Passes and admin issue"]
   end
-  Auth --> Roles
-  Roles --> Sessions
-  Sessions --> Book
+  Diary --> Element
+  Element --> Attempt
+  Schedule --> Book
   Passes --> Book
-  Catalog --> Attempts
 ```
 
-## Product decisions (locked for this plan)
+## Already in the tree
 
-1. **Three roles:** keep DB enum value `student` (avoid painful enum rewrites); treat it as **Client** in UI. Add `instructor`. `admin` stays superuser.
-2. **No payments.** Admin issues/revokes passes by hand. Stripe is out of MVP.
-3. **Keep the existing catalog** as Progress. Add a `stage` on attempts (or a small lookup) and instructor notes with staff RLS — do not replace the element grid.
-4. **Atomic booking in Postgres RPCs**, not in Angular. Client-side deduct will race on capacity/credits.
-5. **AnalogJS stays test-only** (`@analogjs/vite-plugin-angular` / Vitest). Runtime remains `@angular/build` + `npx nx serve app`.
+Keep and extend. Do not rewrite.
 
-**Permissions:**
-- **Client (`student`):** book/cancel own slots, see own passes, own progress.
-- **Instructor:** own/assigned sessions roster; add progress notes/stages; cannot edit branding, roles, or pass products.
-- **Admin:** all of the above + CRUD classes/sessions, assign instructors, issue passes, client list, catalog, branding, role changes.
+- Auth, branding, catalog, attempts, media: [`libs/core/auth`](libs/core/auth), [`libs/core/data`](libs/core/data), [`libs/features/dashboard`](libs/features/dashboard), [`libs/features/element`](libs/features/element)
+- Roles: `student` (UI: Клієнт), `instructor`, `admin`. Staff helpers in [`supabase/migrations/202610070001_roles_instructor.sql`](supabase/migrations/202610070001_roles_instructor.sql)
+- Optional studio schema and UI: schedule week list, `book_session` / `cancel_booking`, pass balances on the schedule page. Routes stay. Nav emphasis does not.
 
-## Target Nx layout
+## Session 4 — diary stages and media timeline
 
-Keep path aliases in [`tsconfig.base.json`](tsconfig.base.json). Add two feature libs; **do not** add a `scope:ui` library until copy/paste of Tailwind controls becomes painful (saves generator/token cost).
+This session. Diary first; schedule code untouched except the shell link.
 
-```
-apps/app                          # routes only; wire new loadChildren
-libs/core/auth                    # UserRole + instructor/staff guards
-libs/core/data                    # models + ScheduleApi, BookingsApi, PassesApi, ClientsApi
-libs/features/shell               # nav: Schedule, Passes, Progress
-libs/features/schedule            # NEW @org/schedule — week calendar + book/cancel
-libs/features/passes              # NEW @org/passes — my passes + remaining
-libs/features/dashboard + element # Progress (extend stages + instructor view)
-libs/features/admin               # extra pages: classes, clients, passes, instructors
-supabase/migrations               # one file per session, never edit applied SQL
-```
+- Migration [`supabase/migrations/202610080003_attempt_stages.sql`](supabase/migrations/202610080003_attempt_stages.sql): `attempt_stage` enum and `element_attempts.stage` default `trying`
+- [`libs/core/data`](libs/core/data): stage on `ElementAttempt` / `CreateAttemptInput`, `listMyProgressRows()`, stage rank and summary helpers
+- Add-attempt dialog: required stage (`Пробую`, `В процесі`, `Утримую`, `Опановано`), defaulting to the element's latest stage
+- Element page: stage stepper for the current stage, chronological timeline (oldest first) with forward/back markers and full-width photos/videos
+- Diary home: stage counts and a stage pill on each card that has attempts
+- Shell: **Щоденник** primary, **Розклад** optional. Admin link unchanged
+- Apply with `supabase db reset` (or `supabase migration up` if the local DB should keep its data)
 
-Generate libs with:
+## Upcoming
 
-`npx nx g @nx/angular:library --directory=libs/features/schedule --name=schedule --standalone --skipModule --unitTestRunner=vitest-analog --linter=eslint --tags=scope:feature`
+One session per chat. Diary sessions before optional studio sessions.
 
-Same for `passes`.
+### Session 5 — diary home
 
-**Route map (target):**
-- `/app` — Progress (existing dashboard)
-- `/app/schedule` — week calendar
-- `/app/passes` — client passes
-- `/app/elements/:id` — existing + stage/instructor notes
-- `/admin/classes`, `/admin/clients`, `/admin/passes`, `/admin/instructors` + existing catalog/branding
-- Instructors use `/admin/classes` (roster) and Progress; branding/role tabs stay `adminOnlyGuard`
+- A short "recent attempts" list on `/app` across elements, not only inside one element
+- Filter the grid by stage, in addition to "with records / without records"
+- Empty state that tells a new student to open an element and log the first attempt
 
-## Data model (new migrations)
+### Session 6 — instructor on the student's diary
 
-Add after existing `20260124000*` files (do not rewrite them).
+- Staff can open one client's element timeline (query param or `/admin/clients/:id/progress`)
+- Instructor note distinct from the student's own attempt note
+- RLS: staff select/insert notes; clients stay on their own rows; instructors still cannot edit branding, roles, or pass products
 
-**Roles / helpers:** alter `user_role` add `instructor`; `is_instructor()`, `is_staff()` (`admin OR instructor`); RLS: staff can `select` all `profiles`; only admin `update` `profiles.role`.
+### Session 7 — optional passes page
 
-**Studio settings:** `app_settings.default_capacity`, `cancel_cutoff_hours` (extend singleton).
+- `@org/passes` only if the studio layer is still wanted
+- `MyPassesPage` linked from the same secondary nav as Розклад, not from the diary home
 
-**Schedule:**
-- `class_types` — name, duration_min, default_capacity, active
-- `class_sessions` — type_id, instructor_id → profiles, starts_at, ends_at, capacity, status (`scheduled|cancelled`)
-- Unique `(instructor_id, starts_at)` optional later
+### Session 8 — optional admin studio ops
 
-**Bookings:**
-- `bookings` — session_id, user_id, pass_id, status (`booked|cancelled`), unique `(session_id, user_id)` where booked
-- RPC `book_session(session_id)` — lock session, check capacity, pick valid pass (`remaining > 0` and `valid_until >= now()`), insert booking, decrement remaining
-- RPC `cancel_booking(booking_id)` — before cutoff restore credit; after cutoff keep deducted (configurable)
-
-**Passes:**
-- `pass_products` — name, class_count, validity_days, active (admin)
-- `client_passes` — user_id, product_id, remaining, valid_from, valid_until, status
-
-**Progress (extend, don’t replace):**
-- `element_attempts.stage` text/enum (`trying|in_progress|held|mastered`) default `trying`
-- RLS: staff select/insert notes on any client attempt; clients remain own-row
-- Optional `progress_notes` if instructor comments must be separate from the client’s attempt note
-
-**Seed:** 2 class types, 1 week of sessions, 1 pass product, 1 demo client pass.
-
-```mermaid
-erDiagram
-  profiles ||--o{ class_sessions : teaches
-  class_types ||--o{ class_sessions : has
-  class_sessions ||--o{ bookings : fills
-  profiles ||--o{ bookings : books
-  client_passes ||--o{ bookings : pays
-  pass_products ||--o{ client_passes : issued
-  profiles ||--o{ element_attempts : practices
-  elements ||--o{ element_attempts : logged
-```
-
-## Month plan (8 Cursor sessions)
-
-Work **one session = one PR-sized chat**. Start each chat with the session id and “only these files”. Run `npx nx serve app` + `supabase db reset` only when that session touches SQL.
-
-### Week 1 — Foundation (sessions 1–2)
-
-**Session 1 — Roles + nav (no booking UI yet)**
-- [`supabase/migrations/2026XXXX_roles_instructor.sql`](supabase/migrations/) — enum value, `is_staff()`, profile RLS
-- [`libs/core/data/src/lib/models.ts`](libs/core/data/src/lib/models.ts), [`libs/core/auth/src/lib/profiles.api.ts`](libs/core/auth/src/lib/profiles.api.ts), [`libs/core/auth/src/lib/auth.store.ts`](libs/core/auth/src/lib/auth.store.ts) — `isInstructor`, `isStaff`
-- New [`libs/core/auth/src/lib/staff-only.guard.ts`](libs/core/auth/src/lib/staff-only.guard.ts)
-- Copy: Client vs Instructor vs Admin in [`sign-in.page.ts`](libs/core/auth/src/lib/pages/sign-in.page.ts), [`app-shell.page.ts`](libs/features/shell/src/lib/pages/app-shell.page.ts)
-- [`readme.md`](readme.md) bootstrap snippet for instructor
-
-**Session 2 — Schema for classes / bookings / passes (SQL + types only)**
-- One migration: tables + indexes + RLS (no Angular pages)
-- Types + empty API stubs in [`libs/core/data`](libs/core/data): `schedule.api.ts`, `bookings.api.ts`, `passes.api.ts`
-- Seed sessions + pass product
-- Verify in Studio; no UI
-
-### Week 2 — Schedule (sessions 3–4)
-
-**Session 3 — Client calendar (read-only)**
-- Generate `@org/schedule`
-- `SchedulePage` week view (start with a **week list**, not a full calendar lib)
-- Wire [`shell.routes.ts`](libs/features/shell/src/lib/shell.routes.ts) `/app/schedule`
-- `ScheduleApi.listSessionsInRange`
-
-**Session 4 — Book + cancel**
-- SQL RPCs `book_session` / `cancel_booking`
-- [`bookings.api.ts`](libs/core/data) calls RPCs only
-- Buttons + capacity (`booked_count / capacity`) + toast errors (full class, no pass, cutoff)
-- Thin Playwright spec in [`apps/app-e2e`](apps/app-e2e) for signed-in book happy path (skip if local Supabase is down)
-
-### Week 3 — Passes + admin issue (sessions 5–6)
-
-**Session 5 — Client passes UI**
-- Generate `@org/passes`
-- `MyPassesPage`: remaining, validity, which pass will be used next
-- Shell nav link
-
-**Session 6 — Admin issue pass + class CRUD**
-- Admin pages: `classes.page.ts` (types + upcoming sessions + capacity), `passes.page.ts` (products + issue to user by email/id)
-- `staffOnlyGuard` on classes roster; `adminOnlyGuard` on issuing passes
-- Extend [`admin.routes.ts`](libs/features/admin/src/lib/admin.routes.ts) + [`admin-shell.page.ts`](libs/features/admin/src/lib/pages/admin-shell.page.ts)
-
-### Week 4 — People, progress, polish (sessions 7–8)
-
-**Session 7 — Clients + instructors**
-- `clients.page.ts` list/search profiles, admin sets role
-- `instructors.page.ts` assign instructor to sessions
-- `ClientsApi` / profile updates; never allow clients to self-promote (`with check` blocks role change unless `is_admin()`)
-
-**Session 8 — Progress stages + instructor notes + hardening**
-- Attempt `stage` + staff RLS
-- Instructor can open a client’s element timeline (query param or `/admin/clients/:id/progress`)
-- Cancellation cutoff + empty/error states
-- Smoke: `npx nx build app`, lint on touched libs, update [`readme.md`](readme.md) routes and `supabase start` notes
+- Classes, issue passes, client list, role assignment
+- Smoke: `npx nx build app`, lint on touched libs, readme routes
+- Skip this session entirely if the diary is the only thing the studio will use
 
 ## Implementation rules (Angular 21 / Nx)
 
-- Feature stores: `signal` state + computed, `providedIn` page-level like [`ElementStore`](libs/features/element/src/lib/element.store.ts)
-- All Supabase I/O in `@org/data` (or auth); pages do not call `SUPABASE_CLIENT` except existing admin storage helper
-- Booking mutations **only** via RPC
-- Reuse `StateBlockComponent` / `ToastService`
-- Ukrainian UI copy to match current pages
-- New code: standalone, `ChangeDetectionStrategy.OnPush`, Tailwind only
+- Feature stores: private `signal` state, public `computed`, `inject()`, page-level `providedIn` like [`ElementStore`](libs/features/element/src/lib/element.store.ts)
+- Supabase I/O stays in `@org/data` (or auth). `@org/data` must not import `@org/auth`
+- Booking mutations stay RPC-only. Do not reimplement them in Angular
+- Ukrainian UI copy
+- Standalone, `ChangeDetectionStrategy.OnPush`, Tailwind only
 - Commands: `npx nx serve app`, `npx nx test <lib>`, `npx nx lint <lib>`
 
-## Cursor free-plan discipline
+## Explicitly out of scope
 
-- One session prompt per chat; paste the session’s file list
-- Do not ask the agent to “implement the whole MVP”
-- Prefer editing existing libs over new shared abstractions
-- Skip FullCalendar / extra UI kits; CSS grid week list is enough
-- Do not regenerate Nx workspace or Analog SSR
-- After each session: `supabase db reset` if SQL changed, then click the one flow in the browser
-
-## Explicitly out of month-1 MVP
-
-Payments, multi-studio, waitlists, recurring generation UI beyond “create N days”, mobile native, email/SMS reminders, Analog file-based routing, replacing magic-link auth.
+Payments, multi-studio, waitlists, mobile native, email/SMS reminders, Analog file-based routing, replacing magic-link auth, deleting the schedule/booking module.

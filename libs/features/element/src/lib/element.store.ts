@@ -1,6 +1,7 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
 import {
   AttemptsApi,
+  type AttemptStage,
   CatalogApi,
   type CreateAttemptInput,
   type Element,
@@ -9,6 +10,7 @@ import {
   type MediaItem,
   type MediaType,
 } from '@org/data';
+import { buildAttemptTimeline, type AttemptTimelineEntry } from './timeline';
 
 export interface MediaItemView extends MediaItem {
   readonly signedUrl: string | null;
@@ -52,18 +54,16 @@ export class ElementStore {
   private readonly state = signal<ElementState>(INITIAL_STATE);
 
   readonly element = computed<Element | null>(() => this.state().element);
-  readonly attemptsList = computed<ElementAttempt[]>(() => this.state().attempts);
-  readonly mediaByAttempt = computed<ReadonlyMap<string, MediaItemView[]>>(
-    () => this.state().mediaByAttempt,
+  readonly timeline = computed<AttemptTimelineEntry<MediaItemView>[]>(() =>
+    buildAttemptTimeline(this.state().attempts, this.state().mediaByAttempt),
   );
+  readonly latestStage = computed<AttemptStage | null>(() => {
+    const entries = this.timeline();
+    return entries.length > 0 ? entries[entries.length - 1].attempt.stage : null;
+  });
   readonly loading = computed<boolean>(() => this.state().loading);
   readonly saving = computed<boolean>(() => this.state().saving);
   readonly error = computed<string | null>(() => this.state().error);
-  readonly isDone = computed<boolean>(() => this.state().attempts.length > 0);
-
-  mediaForAttempt(attemptId: string): MediaItemView[] {
-    return this.state().mediaByAttempt.get(attemptId) ?? [];
-  }
 
   async load(elementId: string): Promise<void> {
     this.state.update((s) => ({ ...s, loading: true, error: null }));

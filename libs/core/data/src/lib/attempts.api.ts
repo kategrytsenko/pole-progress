@@ -1,9 +1,10 @@
 import { inject, Injectable } from '@angular/core';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SUPABASE_CLIENT } from '@org/supabase';
-import type { CreateAttemptInput, ElementAttempt } from './models';
+import type { AttemptProgressRow, CreateAttemptInput, ElementAttempt } from './models';
 
-const ATTEMPT_COLUMNS = 'id, element_id, user_id, date, note, created_at';
+const ATTEMPT_COLUMNS = 'id, element_id, user_id, date, note, stage, created_at';
+const PROGRESS_COLUMNS = 'element_id, stage, date, created_at';
 
 @Injectable({ providedIn: 'root' })
 export class AttemptsApi {
@@ -25,21 +26,18 @@ export class AttemptsApi {
     return data ?? [];
   }
 
-  /**
-   * One-shot lookup of element_ids the current user has at least one attempt for.
-   * Returned as a Set for O(1) "is done" checks in the dashboard.
-   */
-  async getMyDoneElementIds(): Promise<Set<string>> {
+  /** Every attempt the current student has logged. The diary store keeps the latest stage per element. */
+  async listMyProgressRows(): Promise<AttemptProgressRow[]> {
     const uid = await this.requireUid();
 
     const { data, error } = await this.client
       .from('element_attempts')
-      .select('element_id')
+      .select(PROGRESS_COLUMNS)
       .eq('user_id', uid)
-      .returns<Pick<ElementAttempt, 'element_id'>[]>();
+      .returns<AttemptProgressRow[]>();
 
     if (error) throw error;
-    return new Set((data ?? []).map((row) => row.element_id));
+    return data ?? [];
   }
 
   async createAttempt(input: CreateAttemptInput): Promise<ElementAttempt> {
@@ -52,6 +50,7 @@ export class AttemptsApi {
         user_id: uid,
         date: input.date,
         note: input.note ?? null,
+        stage: input.stage,
       })
       .select(ATTEMPT_COLUMNS)
       .single<ElementAttempt>();

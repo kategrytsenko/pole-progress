@@ -1,5 +1,12 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import {
+  ATTEMPT_STAGE_LABELS,
+  ATTEMPT_STAGE_PILL_CLASS,
+  ATTEMPT_STAGE_RING_CLASS,
+  ATTEMPT_STAGES,
+  type AttemptStage,
+} from '@org/data';
 import { StateBlockComponent } from '@org/shell';
 import { DashboardStore, type DoneFilter } from '../dashboard.store';
 
@@ -10,8 +17,8 @@ interface FilterOption {
 
 const FILTER_OPTIONS: readonly FilterOption[] = [
   { id: 'all', label: 'Усі' },
-  { id: 'done', label: 'Виконані' },
-  { id: 'notDone', label: 'Не виконані' },
+  { id: 'done', label: 'З записами' },
+  { id: 'notDone', label: 'Без записів' },
 ];
 
 @Component({
@@ -22,9 +29,9 @@ const FILTER_OPTIONS: readonly FilterOption[] = [
     <section class="space-y-5">
       <header class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 class="text-2xl font-semibold tracking-tight">Прогрес</h1>
+          <h1 class="text-2xl font-semibold tracking-tight">Щоденник</h1>
           <p class="mt-1 text-sm text-neutral-600">
-            {{ store.doneCount() }} з {{ store.totalCount() }} елементів виконано
+            Особистий трекер прогресу. {{ store.doneCount() }} з {{ store.totalCount() }} елементів з записами.
           </p>
         </div>
 
@@ -43,7 +50,18 @@ const FILTER_OPTIONS: readonly FilterOption[] = [
         </div>
       </header>
 
-      <div role="tablist" aria-label="Фільтр виконання" class="flex flex-wrap gap-2">
+      @if (!store.loading() && !store.error()) {
+        <ul aria-label="Скільки елементів на кожному етапі" class="flex flex-wrap gap-2">
+          @for (stage of stages; track stage) {
+            <li [class]="'rounded-full px-2.5 py-1 text-xs font-semibold ' + stagePillClass(stage)">
+              {{ stageLabel(stage) }}
+              <span class="ml-1 tabular-nums">{{ store.stageCounts()[stage] }}</span>
+            </li>
+          }
+        </ul>
+      }
+
+      <div role="tablist" aria-label="Фільтр записів" class="flex flex-wrap gap-2">
         @for (option of filterOptions; track option.id) {
           <button
             role="tab"
@@ -105,11 +123,7 @@ const FILTER_OPTIONS: readonly FilterOption[] = [
                       [routerLink]="['/app/elements', el.id]"
                       class="group block rounded-xl border border-neutral-200 bg-white p-2 shadow-sm transition hover:border-primary hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary/30"
                     >
-                      <div
-                        class="relative aspect-square w-full overflow-hidden rounded-lg bg-neutral-100"
-                        [class.ring-2]="store.isDone(el.id)"
-                        [class.ring-primary]="store.isDone(el.id)"
-                      >
+                      <div [class]="thumbClass(el.id)">
                         @if (el.image_url) {
                           <img
                             [src]="el.image_url"
@@ -123,24 +137,15 @@ const FILTER_OPTIONS: readonly FilterOption[] = [
                           </div>
                         }
 
-                        @if (store.isDone(el.id)) {
-                          <span
-                            aria-label="Виконано"
-                            class="absolute right-1 top-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary text-white shadow"
-                          >
-                            <svg viewBox="0 0 20 20" fill="currentColor" class="h-3.5 w-3.5" aria-hidden="true">
-                              <path
-                                fill-rule="evenodd"
-                                d="M16.704 5.296a1 1 0 010 1.414l-7.5 7.5a1 1 0 01-1.414 0l-3.5-3.5a1 1 0 011.414-1.414L8.5 12.086l6.79-6.79a1 1 0 011.414 0z"
-                                clip-rule="evenodd"
-                              />
-                            </svg>
-                          </span>
-                        }
                       </div>
                       <p class="mt-2 truncate text-sm font-medium text-neutral-800 group-hover:text-primary">
                         {{ el.name }}
                       </p>
+                      @if (store.stageOf(el.id); as stage) {
+                        <span [class]="'mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ' + stagePillClass(stage)">
+                          {{ stageLabel(stage) }}
+                        </span>
+                      }
                     </a>
                   </li>
                 }
@@ -155,6 +160,7 @@ const FILTER_OPTIONS: readonly FilterOption[] = [
 export class DashboardPage implements OnInit {
   protected readonly store = inject(DashboardStore);
   protected readonly filterOptions = FILTER_OPTIONS;
+  protected readonly stages = ATTEMPT_STAGES;
 
   ngOnInit(): void {
     void this.store.load();
@@ -180,6 +186,21 @@ export class DashboardPage implements OnInit {
     return active
       ? `${base} border-primary bg-primary text-white`
       : `${base} border-neutral-300 bg-white text-neutral-700 hover:border-primary hover:text-primary`;
+  }
+
+  protected stageLabel(stage: AttemptStage): string {
+    return ATTEMPT_STAGE_LABELS[stage];
+  }
+
+  protected stagePillClass(stage: AttemptStage): string {
+    return ATTEMPT_STAGE_PILL_CLASS[stage];
+  }
+
+  protected thumbClass(elementId: string): string {
+    const base = 'relative aspect-square w-full overflow-hidden rounded-lg bg-neutral-100';
+    const stage = this.store.stageOf(elementId);
+    if (!stage) return base;
+    return `${base} ring-2 ${ATTEMPT_STAGE_RING_CLASS[stage]}`;
   }
 
   protected categoryButtonClass(active: boolean): string {

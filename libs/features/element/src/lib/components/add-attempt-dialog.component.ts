@@ -10,6 +10,14 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import {
+  ATTEMPT_STAGE_HINTS,
+  ATTEMPT_STAGE_LABELS,
+  ATTEMPT_STAGE_MARK_CLASS,
+  ATTEMPT_STAGES,
+  type AttemptStage,
+  type ElementAttempt,
+} from '@org/data';
 import { ToastService } from '@org/shell';
 import { ElementStore } from '../element.store';
 
@@ -66,6 +74,27 @@ function isAllowedFile(file: File): boolean {
             />
           </label>
 
+          <fieldset class="flex flex-col gap-2">
+            <legend class="text-sm font-medium text-neutral-800">Етап</legend>
+            <div class="grid grid-cols-2 gap-2">
+              @for (option of stages; track option) {
+                <label [class]="stageOptionClass(stage() === option)">
+                  <input
+                    type="radio"
+                    name="stage"
+                    class="sr-only"
+                    [value]="option"
+                    [checked]="stage() === option"
+                    (change)="stage.set(option)"
+                  />
+                  <span [class]="'h-2 w-2 shrink-0 rounded-full ' + markClass(option)" aria-hidden="true"></span>
+                  <span>{{ label(option) }}</span>
+                </label>
+              }
+            </div>
+            <p class="text-xs text-neutral-500">{{ hint(stage()) }}</p>
+          </fieldset>
+
           <label class="flex flex-col gap-1 text-sm">
             <span class="font-medium text-neutral-800">Нотатка <span class="font-normal text-neutral-400">(необов'язково)</span></span>
             <textarea
@@ -121,7 +150,9 @@ export class AddAttemptDialogComponent {
   private readonly toasts = inject(ToastService);
 
   protected readonly accept = ACCEPT;
+  protected readonly stages = ATTEMPT_STAGES;
   protected readonly date = signal<string>(todayIso());
+  protected readonly stage = signal<AttemptStage>('trying');
   protected readonly note = signal<string>('');
   protected readonly selectedFiles = signal<readonly File[]>([]);
   protected readonly rejectedCount = signal<number>(0);
@@ -130,12 +161,14 @@ export class AddAttemptDialogComponent {
     () => !this.store.saving() && this.date().length > 0,
   );
 
-  @Output() readonly created = new EventEmitter<string>();
+  @Output() readonly created = new EventEmitter<ElementAttempt>();
 
   @ViewChild('dlg', { static: true }) private readonly dialogRef!: ElementRef<HTMLDialogElement>;
 
   open(): void {
     this.reset();
+    const latest = this.store.latestStage();
+    if (latest) this.stage.set(latest);
     const dlg = this.dialogRef.nativeElement;
     if (!dlg.open) dlg.showModal();
   }
@@ -178,19 +211,41 @@ export class AddAttemptDialogComponent {
           elementId,
           date: this.date(),
           note: this.note().trim() || null,
+          stage: this.stage(),
         },
         [...this.selectedFiles()],
       );
       this.toasts.success('Спробу додано');
-      this.created.emit(attempt.id);
+      this.created.emit(attempt);
       this.close();
     } catch (err: unknown) {
       this.toasts.error(err instanceof Error ? err.message : 'Не вдалося зберегти спробу');
     }
   }
 
+  protected label(stage: AttemptStage): string {
+    return ATTEMPT_STAGE_LABELS[stage];
+  }
+
+  protected hint(stage: AttemptStage): string {
+    return ATTEMPT_STAGE_HINTS[stage];
+  }
+
+  protected markClass(stage: AttemptStage): string {
+    return ATTEMPT_STAGE_MARK_CLASS[stage];
+  }
+
+  protected stageOptionClass(selected: boolean): string {
+    const base =
+      'flex cursor-pointer items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition';
+    return selected
+      ? `${base} border-primary bg-primary/10 text-primary ring-2 ring-primary/20`
+      : `${base} border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300`;
+  }
+
   private reset(): void {
     this.date.set(todayIso());
+    this.stage.set('trying');
     this.note.set('');
     this.selectedFiles.set([]);
     this.rejectedCount.set(0);
