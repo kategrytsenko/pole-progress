@@ -10,6 +10,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DatePipe } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { AuthStore } from '@org/auth';
 import {
   ATTEMPT_STAGE_LABELS,
   ATTEMPT_STAGE_MARK_CLASS,
@@ -23,9 +24,12 @@ import {
 import { DashboardStore } from '@org/dashboard';
 import { StateBlockComponent, ToastService } from '@org/shell';
 import { AddAttemptDialogComponent } from '../components/add-attempt-dialog.component';
+import { AttemptReactionsComponent } from '../components/attempt-reactions.component';
 import { InstructorFeedbackComponent } from '../components/instructor-feedback.component';
 import { InstructorNoteFormComponent } from '../components/instructor-note-form.component';
 import { ElementStore, type MediaItemView } from '../element.store';
+
+type DiaryView = 'own' | 'staff' | 'journal';
 
 type StepState = 'current' | 'reached' | 'upcoming';
 
@@ -35,6 +39,7 @@ type StepState = 'current' | 'reached' | 'upcoming';
     DatePipe,
     RouterLink,
     AddAttemptDialogComponent,
+    AttemptReactionsComponent,
     InstructorFeedbackComponent,
     InstructorNoteFormComponent,
     StateBlockComponent,
@@ -50,18 +55,20 @@ type StepState = 'current' | 'reached' | 'upcoming';
         <svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4" aria-hidden="true">
           <path fill-rule="evenodd" d="M12.707 4.293a1 1 0 010 1.414L8.414 10l4.293 4.293a1 1 0 11-1.414 1.414l-5-5a1 1 0 010-1.414l5-5a1 1 0 011.414 0z" clip-rule="evenodd" />
         </svg>
-        {{ reviewing ? 'До щоденника учня' : 'До щоденника' }}
+        {{ backLabel }}
       </a>
 
       @if (store.loading()) {
         <pp-state-block mode="loading" />
       } @else if (store.error(); as error) {
         <pp-state-block mode="error" [message]="error" />
+      } @else if (store.unavailable()) {
+        <pp-state-block mode="empty" message="Цей щоденник приватний." />
       } @else if (store.element(); as element) {
         <header class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div class="space-y-2">
             <p class="text-xs font-semibold uppercase tracking-wide text-primary">
-              {{ reviewing ? 'Щоденник · ' + studentLabel(store.studentName()) : 'Щоденник' }}
+              {{ eyebrow }}
             </p>
             <div class="flex flex-wrap items-center gap-3">
               <h1 class="text-2xl font-semibold tracking-tight">{{ element.name }}</h1>
@@ -73,11 +80,11 @@ type StepState = 'current' | 'reached' | 'upcoming';
             </div>
           </div>
 
-          @if (reviewing) {
+          @if (showInstructorForm) {
             <p class="max-w-sm text-sm text-neutral-600">
               Спроби змінює учень. Коментар інструктора можна додати до кожного запису.
             </p>
-          } @else {
+          } @else if (canEditAttempts) {
             <button
               type="button"
               (click)="onAddAttempt()"
@@ -124,9 +131,7 @@ type StepState = 'current' | 'reached' | 'upcoming';
           @if (store.timeline().length === 0) {
             <pp-state-block
               mode="empty"
-              [message]="reviewing
-                ? 'У цього учня ще немає спроб цього елемента.'
-                : 'Поки що немає жодної спроби. Натисни «Додати спробу», щоб почати щоденник цього елемента.'"
+              [message]="emptyAttemptsMessage"
             />
           } @else {
             <ol class="relative space-y-6 border-l-2 border-neutral-200 pl-6">
@@ -151,7 +156,7 @@ type StepState = 'current' | 'reached' | 'upcoming';
                           {{ label(entry.attempt.stage) }}
                         </span>
                       </div>
-                      @if (!reviewing) {
+                      @if (canEditAttempts) {
                         <div class="flex items-center">
                           <button
                             type="button"
@@ -193,7 +198,7 @@ type StepState = 'current' | 'reached' | 'upcoming';
                       <p class="mt-3 whitespace-pre-wrap text-sm text-neutral-700">{{ entry.attempt.note }}</p>
                     }
 
-                    @if (reviewing) {
+                    @if (showInstructorForm) {
                       <pp-instructor-note-form
                         class="mt-3 block"
                         [attemptId]="entry.attempt.id"
@@ -201,7 +206,7 @@ type StepState = 'current' | 'reached' | 'upcoming';
                         [saving]="store.savingFeedbackId() === entry.attempt.id"
                         (saveNote)="onSaveFeedback(entry.attempt.id, $event)"
                       />
-                    } @else if (entry.attempt.instructor_feedback; as feedback) {
+                    } @else if (canEditAttempts && entry.attempt.instructor_feedback; as feedback) {
                       <pp-instructor-feedback class="mt-3 block" [feedback]="feedback" />
                     }
 
@@ -235,6 +240,21 @@ type StepState = 'current' | 'reached' | 'upcoming';
                         }
                       </ul>
                     }
+
+                    <pp-attempt-reactions
+                      [attemptId]="entry.attempt.id"
+                      [attemptOwnerId]="entry.attempt.user_id"
+                      [viewerId]="viewerId"
+                      [journalPublic]="store.journalPublic()"
+                      [hasStudioAccess]="auth.hasStudioAccess()"
+                      [likes]="store.likesFor(entry.attempt.id)"
+                      [comments]="store.commentsFor(entry.attempt.id)"
+                      [busy]="store.savingLikeId() === entry.attempt.id || store.savingCommentAttemptId() === entry.attempt.id"
+                      (toggleLike)="onToggleLike(entry.attempt.id)"
+                      (addComment)="onAddComment(entry.attempt.id, $event)"
+                      (updateComment)="onUpdateComment(entry.attempt.id, $event)"
+                      (deleteComment)="onDeleteComment(entry.attempt.id, $event)"
+                    />
                   </article>
                 </li>
               }
@@ -242,7 +262,7 @@ type StepState = 'current' | 'reached' | 'upcoming';
           }
         </section>
 
-        @if (!reviewing) {
+        @if (canEditAttempts) {
           <pp-add-attempt-dialog
             #dialog
             (created)="onAttemptCreated($event)"
@@ -259,10 +279,14 @@ export class ElementPage implements OnInit {
   @Input({ required: true }) id!: string;
 
   protected readonly store = inject(ElementStore);
+  protected readonly auth = inject(AuthStore);
   protected readonly stages = ATTEMPT_STAGES;
-  protected readonly studentLabel = studentLabel;
-  protected reviewing = false;
+  protected viewerId: string | null = null;
+  protected diary: DiaryView = 'own';
+  protected canEditAttempts = true;
+  protected showInstructorForm = false;
   protected backLink: string | readonly string[] = '/app';
+  protected backLabel = 'До щоденника';
   private readonly dashboard = inject(DashboardStore);
   private readonly toasts = inject(ToastService);
   private readonly route = inject(ActivatedRoute);
@@ -270,14 +294,66 @@ export class ElementPage implements OnInit {
 
   @ViewChild('dialog') private dialog?: AddAttemptDialogComponent;
 
+  protected get eyebrow(): string {
+    if (this.diary === 'own') return 'Щоденник';
+    const prefix = this.diary === 'journal' ? 'Публічний щоденник' : 'Щоденник';
+    return `${prefix} · ${studentLabel(this.store.studentName())}`;
+  }
+
+  protected get emptyAttemptsMessage(): string {
+    if (this.canEditAttempts) {
+      return 'Поки що немає жодної спроби. Натисни «Додати спробу», щоб почати щоденник цього елемента.';
+    }
+    if (this.diary === 'journal') return 'У цьому щоденнику ще немає спроб цього елемента.';
+    return 'У цього учня ще немає спроб цього елемента.';
+  }
+
   ngOnInit(): void {
     this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
-      const studentId = this.studentIdFromRoute();
-      this.reviewing = studentId !== null;
-      this.backLink = studentId ? ['/app/students', studentId] : '/app';
+      this.applyRoute();
       const elementId = this.route.snapshot.paramMap.get('id') ?? this.id;
-      void this.store.load(elementId, studentId);
+      const studentId = this.diary === 'own' ? null : this.studentIdFromRoute();
+      void this.store.load(elementId, studentId, {
+        requirePublicJournal: this.diary === 'journal',
+      });
     });
+  }
+
+  protected async onToggleLike(attemptId: string): Promise<void> {
+    try {
+      await this.store.toggleLike(attemptId);
+    } catch (err: unknown) {
+      this.toasts.error(err instanceof Error ? err.message : 'Не вдалося оновити вподобання');
+    }
+  }
+
+  protected async onAddComment(attemptId: string, body: string): Promise<void> {
+    try {
+      await this.store.addComment(attemptId, body);
+    } catch (err: unknown) {
+      this.toasts.error(err instanceof Error ? err.message : 'Не вдалося додати коментар');
+    }
+  }
+
+  protected async onUpdateComment(
+    attemptId: string,
+    change: { id: string; body: string },
+  ): Promise<void> {
+    try {
+      await this.store.updateComment(attemptId, change.id, change.body);
+      this.toasts.success('Коментар збережено');
+    } catch (err: unknown) {
+      this.toasts.error(err instanceof Error ? err.message : 'Не вдалося зберегти коментар');
+    }
+  }
+
+  protected async onDeleteComment(attemptId: string, commentId: string): Promise<void> {
+    try {
+      await this.store.deleteComment(attemptId, commentId);
+      this.toasts.success('Коментар видалено');
+    } catch (err: unknown) {
+      this.toasts.error(err instanceof Error ? err.message : 'Не вдалося видалити коментар');
+    }
   }
 
   protected async onSaveFeedback(attemptId: string, body: string): Promise<void> {
@@ -287,6 +363,40 @@ export class ElementPage implements OnInit {
     } catch (err: unknown) {
       this.toasts.error(err instanceof Error ? err.message : 'Не вдалося зберегти коментар');
     }
+  }
+
+  private applyRoute(): void {
+    this.diary = this.diaryFromRoute();
+    const studentId = this.diary === 'own' ? null : this.studentIdFromRoute();
+    this.viewerId = this.auth.user()?.id ?? null;
+    this.canEditAttempts =
+      this.diary === 'own' || (this.viewerId !== null && studentId === this.viewerId);
+    this.showInstructorForm = this.auth.isStaff() && !this.canEditAttempts;
+
+    if (this.diary === 'staff' && studentId) {
+      this.backLink = ['/app/students', studentId];
+      this.backLabel = 'До щоденника учня';
+      return;
+    }
+
+    if (this.diary === 'journal' && studentId) {
+      this.backLink = ['/app/journals', studentId];
+      this.backLabel = 'До щоденника';
+      return;
+    }
+
+    this.backLink = '/app';
+    this.backLabel = 'До щоденника';
+  }
+
+  private diaryFromRoute(): DiaryView {
+    let current: ActivatedRoute | null = this.route;
+    while (current) {
+      const diary = current.snapshot.data['diary'];
+      if (diary === 'staff' || diary === 'journal' || diary === 'own') return diary;
+      current = current.parent;
+    }
+    return 'own';
   }
 
   private studentIdFromRoute(): string | null {

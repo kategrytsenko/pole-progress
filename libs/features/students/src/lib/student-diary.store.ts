@@ -6,6 +6,7 @@ import {
   type Element,
   type ElementCategory,
   type ElementStageSummary,
+  JournalsApi,
   studentLabel,
   StudentsApi,
   type StudioStudent,
@@ -23,6 +24,7 @@ interface StudentDiaryState {
   filter: StudentRecordFilter;
   query: string;
   loading: boolean;
+  unavailable: boolean;
   error: string | null;
 }
 
@@ -42,6 +44,7 @@ const INITIAL_STATE: StudentDiaryState = {
   filter: 'all',
   query: '',
   loading: true,
+  unavailable: false,
   error: null,
 };
 
@@ -57,6 +60,7 @@ function toErrorMessage(err: unknown, fallback: string): string {
 @Injectable()
 export class StudentDiaryStore {
   private readonly students = inject(StudentsApi);
+  private readonly journals = inject(JournalsApi);
   private readonly catalog = inject(CatalogApi);
   private readonly attempts = inject(AttemptsApi);
   private readonly state = signal<StudentDiaryState>(INITIAL_STATE);
@@ -69,6 +73,7 @@ export class StudentDiaryStore {
   readonly filter = computed<StudentRecordFilter>(() => this.state().filter);
   readonly query = computed<string>(() => this.state().query);
   readonly loading = computed<boolean>(() => this.state().loading);
+  readonly unavailable = computed<boolean>(() => this.state().unavailable);
   readonly error = computed<string | null>(() => this.state().error);
   readonly recordedCount = computed(() => this.state().progress.size);
   readonly totalCount = computed(() => this.state().elements.length);
@@ -100,13 +105,20 @@ export class StudentDiaryStore {
     return this.state().progress.get(elementId)?.stage ?? null;
   }
 
-  async load(studentId: string): Promise<void> {
+  async load(studentId: string, source: 'staff' | 'journal' = 'staff'): Promise<void> {
     const generation = ++this.loadGeneration;
-    this.state.update((current) => ({ ...current, loading: true, error: null }));
+    this.state.update((current) => ({
+      ...current,
+      loading: true,
+      error: null,
+      unavailable: false,
+    }));
 
     try {
-      const [student, categories, elements, progressRows] = await Promise.all([
-        this.students.getStudent(studentId),
+      const student = await this.loadProfile(studentId, source);
+      if (generation !== this.loadGeneration) return;
+
+      const [categories, elements, progressRows] = await Promise.all([
         this.catalog.getCategories(),
         this.catalog.getAllElements(),
         this.attempts.listProgressRows(studentId),
@@ -119,10 +131,21 @@ export class StudentDiaryStore {
         categories,
         elements,
         progress: summarizeElementStages(progressRows),
+        unavailable: false,
         loading: false,
       }));
     } catch (err: unknown) {
       if (generation !== this.loadGeneration) return;
+      if (err instanceof Error && err.message === 'Journal unavailable') {
+        this.state.update((current) => ({
+          ...current,
+          loading: false,
+          unavailable: true,
+          student: null,
+          error: null,
+        }));
+        return;
+      }
       this.state.update((current) => ({
         ...current,
         loading: false,
@@ -141,5 +164,16 @@ export class StudentDiaryStore {
 
   setQuery(query: string): void {
     this.state.update((current) => ({ ...current, query }));
+  }
+
+  private async loadProfile(
+    studentId: string,
+    source: 'staff' | 'journal',
+  ): Promise<StudioStudent> {
+    if (source === 'staff') return this.students.getStudent(studentId);
+
+    const journal = await this.journals.getPublicJournal(studentId);
+    if (!journal) throw new Error('Journal unavailable');
+    return journal;
   }
 }

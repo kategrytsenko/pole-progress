@@ -1,11 +1,15 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
 import {
+  applyLikeToggle,
   AttemptsApi,
+  type AttemptComment,
   type AttemptStage,
   CatalogApi,
   type CreateAttemptInput,
   type Element,
   type ElementAttempt,
+  JournalsApi,
+  type LikeSummary,
   type UpdateAttemptInput,
   MediaApi,
   type MediaItem,
@@ -23,20 +27,34 @@ interface ElementState {
   studentName: string | null;
   attempts: ElementAttempt[];
   mediaByAttempt: ReadonlyMap<string, MediaItemView[]>;
+  likesByAttempt: ReadonlyMap<string, LikeSummary>;
+  commentsByAttempt: ReadonlyMap<string, AttemptComment[]>;
+  journalPublic: boolean;
+  unavailable: boolean;
   loading: boolean;
   saving: boolean;
   savingFeedbackId: string | null;
+  savingLikeId: string | null;
+  savingCommentAttemptId: string | null;
   error: string | null;
 }
+
+const EMPTY_LIKE: LikeSummary = { count: 0, likedByMe: false };
 
 const INITIAL_STATE: ElementState = {
   element: null,
   studentName: null,
   attempts: [],
   mediaByAttempt: new Map<string, MediaItemView[]>(),
+  likesByAttempt: new Map<string, LikeSummary>(),
+  commentsByAttempt: new Map<string, AttemptComment[]>(),
+  journalPublic: false,
+  unavailable: false,
   loading: true,
   saving: false,
   savingFeedbackId: null,
+  savingLikeId: null,
+  savingCommentAttemptId: null,
   error: null,
 };
 
@@ -56,6 +74,7 @@ export class ElementStore {
   private readonly catalog = inject(CatalogApi);
   private readonly attempts = inject(AttemptsApi);
   private readonly students = inject(StudentsApi);
+  private readonly journals = inject(JournalsApi);
   private readonly media = inject(MediaApi);
 
   private readonly state = signal<ElementState>(INITIAL_STATE);
@@ -70,39 +89,90 @@ export class ElementStore {
     const entries = this.timeline();
     return entries.length > 0 ? entries[entries.length - 1].attempt.stage : null;
   });
+  readonly journalPublic = computed<boolean>(() => this.state().journalPublic);
+  readonly unavailable = computed<boolean>(() => this.state().unavailable);
   readonly loading = computed<boolean>(() => this.state().loading);
   readonly saving = computed<boolean>(() => this.state().saving);
   readonly savingFeedbackId = computed<string | null>(() => this.state().savingFeedbackId);
+  readonly savingLikeId = computed<string | null>(() => this.state().savingLikeId);
+  readonly savingCommentAttemptId = computed<string | null>(
+    () => this.state().savingCommentAttemptId,
+  );
   readonly error = computed<string | null>(() => this.state().error);
 
   mediaFor(attemptId: string): readonly MediaItemView[] {
     return this.state().mediaByAttempt.get(attemptId) ?? [];
   }
 
-  async load(elementId: string, studentId?: string | null): Promise<void> {
+  likesFor(attemptId: string): LikeSummary {
+    return this.state().likesByAttempt.get(attemptId) ?? EMPTY_LIKE;
+  }
+
+  commentsFor(attemptId: string): readonly AttemptComment[] {
+    return this.state().commentsByAttempt.get(attemptId) ?? [];
+  }
+
+  async load(
+    elementId: string,
+    studentId?: string | null,
+    options?: { requirePublicJournal?: boolean },
+  ): Promise<void> {
     const generation = ++this.loadGeneration;
     const reviewId = studentId?.trim() || null;
-    this.state.update((s) => ({ ...s, loading: true, error: null, studentName: null }));
+    this.state.update((s) => ({
+      ...s,
+      loading: true,
+      error: null,
+      unavailable: false,
+      studentName: null,
+    }));
 
     try {
+      let publicName: string | null = null;
+      if (options?.requirePublicJournal) {
+        if (!reviewId) {
+          this.markUnavailable(generation);
+          return;
+        }
+        const journal = await this.journals.getPublicJournal(reviewId);
+        if (generation !== this.loadGeneration) return;
+        if (!journal) {
+          this.markUnavailable(generation);
+          return;
+        }
+        publicName = journal.name;
+      }
+
       const [element, attempts, student] = await Promise.all([
         this.catalog.getElement(elementId),
         reviewId
           ? this.attempts.listAttemptsForElement(elementId, reviewId)
           : this.attempts.listMyAttemptsForElement(elementId),
-        reviewId ? this.students.getStudent(reviewId) : Promise.resolve(null),
+        reviewId && !options?.requirePublicJournal
+          ? this.students.getStudent(reviewId)
+          : Promise.resolve(null),
       ]);
       if (generation !== this.loadGeneration) return;
 
-      const mediaByAttempt = await this.loadMediaForAttempts(attempts);
+      const [mediaByAttempt, reactions, journalPublic] = await Promise.all([
+        this.loadMediaForAttempts(attempts),
+        this.journals.loadReactions(attempts.map((attempt) => attempt.id)),
+        options?.requirePublicJournal
+          ? Promise.resolve(true)
+          : this.journals.isJournalPublic(reviewId ?? undefined),
+      ]);
       if (generation !== this.loadGeneration) return;
 
       this.state.update((s) => ({
         ...s,
         element,
-        studentName: student?.name ?? null,
+        studentName: student?.name ?? publicName,
         attempts,
         mediaByAttempt,
+        likesByAttempt: reactions.likes,
+        commentsByAttempt: reactions.comments,
+        journalPublic,
+        unavailable: false,
         loading: false,
       }));
     } catch (err: unknown) {
@@ -112,6 +182,74 @@ export class ElementStore {
         loading: false,
         error: toErrorMessage(err, 'Failed to load element'),
       }));
+    }
+  }
+
+  async toggleLike(attemptId: string): Promise<void> {
+    const current = this.likesFor(attemptId);
+    const next = applyLikeToggle(current);
+    this.state.update((s) => ({
+      ...s,
+      savingLikeId: attemptId,
+      likesByAttempt: replaceLike(s.likesByAttempt, attemptId, next),
+    }));
+
+    try {
+      if (current.likedByMe) await this.journals.unlike(attemptId);
+      else await this.journals.like(attemptId);
+      this.state.update((s) => ({ ...s, savingLikeId: null }));
+    } catch (err: unknown) {
+      this.state.update((s) => ({
+        ...s,
+        savingLikeId: null,
+        likesByAttempt: replaceLike(s.likesByAttempt, attemptId, current),
+      }));
+      throw err;
+    }
+  }
+
+  async addComment(attemptId: string, body: string): Promise<void> {
+    this.state.update((s) => ({ ...s, savingCommentAttemptId: attemptId }));
+    try {
+      const comment = await this.journals.addComment(attemptId, body);
+      this.state.update((s) => ({
+        ...s,
+        savingCommentAttemptId: null,
+        commentsByAttempt: appendComment(s.commentsByAttempt, comment),
+      }));
+    } catch (err: unknown) {
+      this.state.update((s) => ({ ...s, savingCommentAttemptId: null }));
+      throw err;
+    }
+  }
+
+  async updateComment(attemptId: string, commentId: string, body: string): Promise<void> {
+    this.state.update((s) => ({ ...s, savingCommentAttemptId: attemptId }));
+    try {
+      const comment = await this.journals.updateComment(commentId, body);
+      this.state.update((s) => ({
+        ...s,
+        savingCommentAttemptId: null,
+        commentsByAttempt: replaceComment(s.commentsByAttempt, attemptId, comment),
+      }));
+    } catch (err: unknown) {
+      this.state.update((s) => ({ ...s, savingCommentAttemptId: null }));
+      throw err;
+    }
+  }
+
+  async deleteComment(attemptId: string, commentId: string): Promise<void> {
+    this.state.update((s) => ({ ...s, savingCommentAttemptId: attemptId }));
+    try {
+      await this.journals.deleteComment(commentId);
+      this.state.update((s) => ({
+        ...s,
+        savingCommentAttemptId: null,
+        commentsByAttempt: removeComment(s.commentsByAttempt, attemptId, commentId),
+      }));
+    } catch (err: unknown) {
+      this.state.update((s) => ({ ...s, savingCommentAttemptId: null }));
+      throw err;
     }
   }
 
@@ -225,6 +363,21 @@ export class ElementStore {
     }
   }
 
+  private markUnavailable(generation: number): void {
+    if (generation !== this.loadGeneration) return;
+    this.state.update((s) => ({
+      ...s,
+      loading: false,
+      unavailable: true,
+      element: null,
+      attempts: [],
+      studentName: null,
+      likesByAttempt: new Map(),
+      commentsByAttempt: new Map(),
+      journalPublic: false,
+    }));
+  }
+
   private async uploadAndResolve(
     attemptId: string,
     files: readonly File[],
@@ -285,4 +438,52 @@ export class ElementStore {
 
 function detectMediaType(file: File): MediaType {
   return file.type.startsWith('video/') ? 'video' : 'image';
+}
+
+function replaceLike(
+  current: ReadonlyMap<string, LikeSummary>,
+  attemptId: string,
+  summary: LikeSummary,
+): Map<string, LikeSummary> {
+  const next = new Map(current);
+  next.set(attemptId, summary);
+  return next;
+}
+
+function appendComment(
+  current: ReadonlyMap<string, AttemptComment[]>,
+  comment: AttemptComment,
+): Map<string, AttemptComment[]> {
+  const next = new Map(current);
+  const list = next.get(comment.attempt_id) ?? [];
+  next.set(comment.attempt_id, [...list, comment]);
+  return next;
+}
+
+function replaceComment(
+  current: ReadonlyMap<string, AttemptComment[]>,
+  attemptId: string,
+  comment: AttemptComment,
+): Map<string, AttemptComment[]> {
+  const next = new Map(current);
+  const list = next.get(attemptId) ?? [];
+  next.set(
+    attemptId,
+    list.map((existing) => (existing.id === comment.id ? comment : existing)),
+  );
+  return next;
+}
+
+function removeComment(
+  current: ReadonlyMap<string, AttemptComment[]>,
+  attemptId: string,
+  commentId: string,
+): Map<string, AttemptComment[]> {
+  const next = new Map(current);
+  const list = next.get(attemptId) ?? [];
+  next.set(
+    attemptId,
+    list.filter((existing) => existing.id !== commentId),
+  );
+  return next;
 }

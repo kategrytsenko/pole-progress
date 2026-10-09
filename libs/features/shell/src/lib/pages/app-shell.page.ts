@@ -122,6 +122,12 @@ export class AppShellPage {
         emphasis: 'optional',
         dividerBefore: true,
       },
+      {
+        link: '/app/journals',
+        label: 'Щоденники',
+        exact: false,
+        emphasis: 'optional',
+      },
     ];
     if (this.auth.isStaff()) {
       items.push({

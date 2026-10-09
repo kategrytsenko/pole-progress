@@ -8,6 +8,7 @@ import {
   type AttemptStage,
 } from '@org/data';
 import { StateBlockComponent } from '@org/shell';
+import { JournalVisibilityComponent } from '../components/journal-visibility.component';
 import { DashboardStore, type DoneFilter } from '../dashboard.store';
 
 interface FilterOption {
@@ -23,7 +24,7 @@ const FILTER_OPTIONS: readonly FilterOption[] = [
 
 @Component({
   selector: 'pp-dashboard',
-  imports: [RouterLink, StateBlockComponent],
+  imports: [RouterLink, JournalVisibilityComponent, StateBlockComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="space-y-5">
@@ -49,6 +50,8 @@ const FILTER_OPTIONS: readonly FilterOption[] = [
           />
         </div>
       </header>
+
+      <pp-journal-visibility />
 
       @if (!store.loading() && !store.error()) {
         <ul aria-label="Скільки елементів на кожному етапі" class="flex flex-wrap gap-2">

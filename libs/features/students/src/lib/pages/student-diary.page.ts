@@ -36,34 +36,40 @@ const FILTER_OPTIONS: readonly FilterOption[] = [
   template: `
     <section class="space-y-5">
       <a
-        routerLink="/app/students"
+        [routerLink]="backLink"
         class="inline-flex items-center gap-1 text-sm font-medium text-neutral-600 transition hover:text-primary"
       >
         <svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4" aria-hidden="true">
           <path fill-rule="evenodd" d="M12.707 4.293a1 1 0 010 1.414L8.414 10l4.293 4.293a1 1 0 11-1.414 1.414l-5-5a1 1 0 010-1.414l5-5a1 1 0 011.414 0z" clip-rule="evenodd" />
         </svg>
-        До списку учнів
+        {{ backLabel }}
       </a>
 
       @if (store.loading()) {
         <pp-state-block mode="loading" />
+      } @else if (store.unavailable()) {
+        <pp-state-block mode="empty" message="Цей щоденник приватний." />
       } @else if (store.error(); as error) {
         <pp-state-block mode="error" [message]="error" />
       } @else {
         <header class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p class="text-xs font-semibold uppercase tracking-wide text-primary">Щоденник учня</p>
+            <p class="text-xs font-semibold uppercase tracking-wide text-primary">{{ eyebrow }}</p>
             <h1 class="mt-1 text-2xl font-semibold tracking-tight">{{ store.studentName() }}</h1>
             <p class="mt-1 text-sm text-neutral-600">
               {{ store.recordedCount() }} з {{ store.totalCount() }} елементів з записами.
-              Поточний етап — це остання спроба за датою.
+              @if (diary === 'journal') {
+                Спроби, фото та відео відкриті для клієнтів студії.
+              } @else {
+                Поточний етап — це остання спроба за датою.
+              }
             </p>
           </div>
 
           <div class="flex w-full max-w-sm items-center gap-2 sm:w-auto">
-            <label class="sr-only" for="student-diary-search">Пошук елементів</label>
+            <label class="sr-only" [attr.for]="searchId">Пошук елементів</label>
             <input
-              id="student-diary-search"
+              [id]="searchId"
               type="search"
               inputmode="search"
               autocomplete="off"
@@ -126,7 +132,7 @@ const FILTER_OPTIONS: readonly FilterOption[] = [
             @for (element of store.filteredElements(); track element.id) {
               <li>
                 <a
-                  [routerLink]="['/app/students', studentId, 'elements', element.id]"
+                  [routerLink]="elementLink(element.id)"
                   class="group block rounded-xl border border-neutral-200 bg-white p-2 shadow-sm transition hover:border-primary hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary/30"
                 >
                   <div [class]="thumbClass(element.id)">
@@ -162,14 +168,37 @@ const FILTER_OPTIONS: readonly FilterOption[] = [
 })
 export class StudentDiaryPage implements OnChanges {
   @Input({ required: true }) studentId!: string;
+  @Input() diary: 'staff' | 'journal' = 'staff';
 
   protected readonly store = inject(StudentDiaryStore);
   protected readonly filterOptions = FILTER_OPTIONS;
   protected readonly stages = ATTEMPT_STAGES;
 
+  protected get backLink(): string {
+    return this.diary === 'journal' ? '/app/journals' : '/app/students';
+  }
+
+  protected get backLabel(): string {
+    return this.diary === 'journal' ? 'До щоденників' : 'До списку учнів';
+  }
+
+  protected get eyebrow(): string {
+    return this.diary === 'journal' ? 'Публічний щоденник' : 'Щоденник учня';
+  }
+
+  protected get searchId(): string {
+    return this.diary === 'journal' ? 'journal-search' : 'student-diary-search';
+  }
+
   ngOnChanges(changes: SimpleChanges): void {
-    if (!changes['studentId']) return;
-    void this.store.load(this.studentId);
+    if (!changes['studentId'] && !changes['diary']) return;
+    if (!this.studentId) return;
+    void this.store.load(this.studentId, this.diary);
+  }
+
+  protected elementLink(elementId: string): string[] {
+    const root = this.diary === 'journal' ? '/app/journals' : '/app/students';
+    return [root, this.studentId, 'elements', elementId];
   }
 
   protected onCategorySelect(id: string | null): void {

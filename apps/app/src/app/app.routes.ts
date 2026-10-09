@@ -21,6 +21,10 @@ export const appRoutes: Route[] = [
             loadChildren: () => import('@org/schedule').then((mod) => mod.scheduleRoutes),
           },
           {
+            path: 'journals',
+            loadChildren: () => import('@org/students').then((mod) => mod.journalsRoutes),
+          },
+          {
             path: 'students',
             canMatch: [staffOnlyGuard],
             loadChildren: () => import('@org/students').then((mod) => mod.studentsRoutes),

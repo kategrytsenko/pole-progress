@@ -75,6 +75,10 @@ Signing in is not enough to open `/app`. Staff (`admin`, `instructor`) go straig
 
 The same rule is `public.has_studio_access()` in `supabase/migrations/202610080006_studio_access.sql`. Apply it with `supabase db reset` or `supabase migration up`. Sessions stay in the browser (`persistSession`), so a reload keeps the user signed in and re-checks membership.
 
+## Public journals
+
+Journals are private until the owner turns on **Публічний щоденник** on `/app`. Peers with studio access can then open `/app/journals`, read that diary’s attempts, photos, and videos, and leave a like or a comment. Turning the journal private hides it again, including media. Staff still read every diary at `/app/students`.
+
 ## Admin: clients
 
 `/admin/clients` lists every profile (name, email, id, role) and whether a pass is active right now. **Видати** inserts a `client_passes` row with `status = 'active'`, `valid_from`, and `valid_until`. **Продовжити** updates the pass that is already active and refills `remaining` from the chosen product. Emails come from `admin_profile_emails()` in `supabase/migrations/202610090001_admin_clients.sql`. Insert and update on `client_passes` require `is_admin()`.
@@ -107,7 +111,7 @@ Path aliases live in `tsconfig.base.json`. Module-boundary tags are enforced in 
 
 Two buckets are provisioned via migrations:
 
-- **`media`** — *private*. Per-user paths `user/{uid}/attempt/{attemptId}/{stamp}-{name}`. RLS only allows the owning user to read/write their own prefix. Used for attempt photos/videos. 100 MB limit, image+video mime allowlist (`202601240004` / `202601240005`).
+- **`media`** — *private*. Per-user paths `user/{uid}/attempt/{attemptId}/{stamp}-{name}`. The owner writes their own prefix. Staff can read every object. A peer with studio access can read that prefix only while the owner’s journal is public. 100 MB limit, image+video mime allowlist (`202601240004` / `202601240005`).
 - **`catalog`** — *public read, admin-only write*. Used for category/element artwork (`element/{id}/...`). `SELECT` open to `anon` + `authenticated`; `INSERT/UPDATE/DELETE` gated by `public.is_admin()`. 10 MB, image mime allowlist (`202601240007`).
 
 DB rows store the storage **path**, not a URL. The app resolves private media via `storage.createSignedUrl(path, ttl)` on demand.

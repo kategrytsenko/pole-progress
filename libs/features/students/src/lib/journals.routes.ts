@@ -1,22 +1,22 @@
 import { Routes } from '@angular/router';
 
-export const studentsRoutes: Routes = [
+export const journalsRoutes: Routes = [
   {
     path: '',
     pathMatch: 'full',
-    title: 'Учні',
-    loadComponent: () => import('./pages/students.page').then((m) => m.StudentsPage),
+    title: 'Щоденники',
+    loadComponent: () => import('./pages/journals.page').then((m) => m.JournalsPage),
   },
   {
     path: ':studentId/elements/:id',
     title: 'Прогрес елемента',
-    data: { diary: 'staff' },
+    data: { diary: 'journal' },
     loadComponent: () => import('@org/element').then((m) => m.ElementPage),
   },
   {
     path: ':studentId',
-    title: 'Щоденник учня',
-    data: { diary: 'staff' },
+    title: 'Публічний щоденник',
+    data: { diary: 'journal' },
     loadComponent: () =>
       import('./pages/student-diary.page').then((m) => m.StudentDiaryPage),
   },

@@ -32,7 +32,7 @@ export class AttemptsApi {
 
   /**
    * Attempts for one element and one student.
-   * Staff can read any student in this studio. A client only receives their own rows.
+   * Staff can read any diary. A peer receives rows only while that journal is public.
    */
   async listAttemptsForElement(elementId: string, userId: string): Promise<ElementAttempt[]> {
     await this.requireUid();
@@ -45,7 +45,7 @@ export class AttemptsApi {
     return this.queryProgressRows(uid);
   }
 
-  /** Stage rows for one student. Staff read the studio; a client only receives their own rows. */
+  /** Stage rows for one student. Staff read every diary. A peer receives rows only while that journal is public. */
   async listProgressRows(userId: string): Promise<AttemptProgressRow[]> {
     await this.requireUid();
     return this.queryProgressRows(userId);
