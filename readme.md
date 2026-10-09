@@ -45,7 +45,7 @@ supabase db reset
 
 The default role for any new user is `student`. To grant `admin`:
 
-1. Sign in at <http://localhost:4200/sign-in> with email and password. Magic link still works through Mailpit, and Google appears once `[auth.external.google]` is enabled. Local demo accounts from the schedule migration: `instructor.demo@pole.local` and `client.demo@pole.local`, password `demo-local-only`.
+1. Sign in at <http://localhost:4200/sign-in> with email and password. Magic link still works through Mailpit. Google works after the setup below. Local demo accounts from the schedule migration: `instructor.demo@pole.local` and `client.demo@pole.local`, password `demo-local-only`.
 2. Find your user id in Supabase Studio → `auth.users`.
 3. Run in SQL Editor (or via `supabase/snippets/Set admin role.sql`):
    ```sql
@@ -54,6 +54,21 @@ The default role for any new user is `student`. To grant `admin`:
    where id = '<your-user-id>';
    ```
 4. Sign out + back in (so the role is re-fetched).
+
+## Google sign-in
+
+`nx serve` talks to local Auth at `http://127.0.0.1:54321`. The Google button calls `signInWithOAuth({ provider: 'google' })` and returns to `/auth/callback`. Local Auth enables Google when `[auth.external.google] enabled = true` and the client id and secret are in the gitignored repo-root `.env`.
+
+1. In [Google Auth Platform → Clients](https://console.cloud.google.com/auth/clients), create an OAuth client of type **Web application**.
+2. Authorized JavaScript origins: `http://localhost:4200` and `http://127.0.0.1:4200`.
+3. Authorized redirect URI for local Auth: `http://127.0.0.1:54321/auth/v1/callback`.
+4. If the same client should serve the hosted project, also add `https://<project-ref>.supabase.co/auth/v1/callback`.
+5. Copy the client id and secret into a gitignored `.env` at the repo root (names are in `.env.example`).
+6. In `supabase/config.toml`, set `[auth.external.google] enabled = true`.
+7. Restart the local stack so Auth reloads the provider: `supabase stop && supabase start`.
+8. On the hosted project, open **Authentication → Sign In / Providers → Google**, paste the same client id and secret, and add the app origin (and `/auth/callback`) under **URL Configuration**. Instagram is not a Supabase Auth provider.
+
+Scopes Google should allow: `openid`, `userinfo.email`, and `userinfo.profile`.
 
 ## Promote a user to instructor
 

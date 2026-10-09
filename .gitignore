@@ -47,6 +47,9 @@ Thumbs.db
 .claude
 .playwright-mcp
 
+# Google OAuth client secret for local Auth. See .env.example.
+.env
+
 vite.config.*.timestamp*
 vitest.config.*.timestamp*
 
