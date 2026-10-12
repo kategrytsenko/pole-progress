@@ -77,7 +77,7 @@ function isAllowedFile(file: File): boolean {
 
           <fieldset class="flex flex-col gap-2">
             <legend class="text-sm font-medium text-neutral-800">Етап</legend>
-            <div class="grid grid-cols-2 gap-2">
+            <div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
               @for (option of stages; track option) {
                 <label [class]="stageOptionClass(stage() === option)">
                   <input

@@ -26,7 +26,7 @@ The primary value is the **student's personal training diary and progress tracke
 
 - `/app` is the diary home: element grid, current stage per element, and the public/private journal switch.
 - `/app/elements/:id` is the owner's element diary: log an attempt with a stage, then read a chronological photo/video timeline.
-- Stages are `trying | in_progress | held | mastered`. The current stage is the **latest attempt by date**, so a later regression replaces an older "mastered".
+- Stages are `trying | in_progress | mastered`. The current stage is the **latest attempt by date**, so a later regression replaces an older "mastered". `held` was removed in `20261012210351_remove_held_stage.sql`; existing `held` rows become `in_progress`.
 
 Schedule, bookings, and passes stay in the codebase. The shell shows **Щоденник** as the primary item. **Розклад** and **Щоденники** are quieter secondary items. **Учні** and **Адмін** are admin-only. New studio-ops work stays behind the remaining diary-home depth.
 
@@ -72,8 +72,8 @@ flowchart TB
 
 - Admin: `/admin/categories`, `/admin/elements`, `/admin/branding` behind `adminOnlyGuard`. Catalog images use the public `catalog` bucket.
 - Diary home: [`libs/features/dashboard`](../libs/features/dashboard). Stage counts, a stage pill on cards that have attempts, search, category filter, and **Усі / З записами / Без записів**.
-- Element timeline: [`libs/features/element`](../libs/features/element). Required stage on create (`Пробую`, `В процесі`, `Утримую`, `Опановано`), defaulting to the element's latest stage. Chronological timeline (oldest first) with forward/back markers. Owner create, edit, and delete. Private `media` bucket; rows store paths and the app mints signed URLs.
-- Stage column: [`supabase/migrations/202610080003_attempt_stages.sql`](../supabase/migrations/202610080003_attempt_stages.sql). Models and `listMyProgressRows()` in [`libs/core/data`](../libs/core/data).
+- Element timeline: [`libs/features/element`](../libs/features/element). Required stage on create (`Пробую`, `В процесі`, `Опановано`), defaulting to the element's latest stage. Chronological timeline (oldest first) with forward/back markers. Owner create, edit, and delete. Private `media` bucket; rows store paths and the app mints signed URLs.
+- Stage column: [`supabase/migrations/202610080003_attempt_stages.sql`](../supabase/migrations/202610080003_attempt_stages.sql), then [`20261012210351_remove_held_stage.sql`](../supabase/migrations/20261012210351_remove_held_stage.sql) drops `held`. Models and `listMyProgressRows()` in [`libs/core/data`](../libs/core/data).
 - Tests: [`libs/core/data/src/lib/attempt-stage.spec.ts`](../libs/core/data/src/lib/attempt-stage.spec.ts), [`libs/features/element/src/lib/timeline.spec.ts`](../libs/features/element/src/lib/timeline.spec.ts).
 
 ### Diary home extras — PARTIAL
@@ -136,13 +136,14 @@ Migrations in `supabase/migrations/`, in apply order:
 | `202610070001_roles_instructor.sql` | Historical: added `instructor`, `is_staff()`, role-change protection. Removed by `20261012201704` |
 | `202610080001_schedule_bookings_passes.sql` | `class_types`, `class_sessions`, `pass_products`, `client_passes`, `bookings`; demo users, sessions, and one pass |
 | `202610080002_booking_rpcs.sql` | `list_sessions_in_range`, `get_session_card`, `book_session`, `cancel_booking` |
-| `202610080003_attempt_stages.sql` | `attempt_stage`, `element_attempts.stage` |
+| `202610080003_attempt_stages.sql` | `attempt_stage`, `element_attempts.stage`. `held` is removed by `20261012210351` |
 | `202610080004_attempt_instructor_notes.sql` | Historical: `attempt_instructor_notes`. Dropped by `20261012201704` |
 | `202610080005_staff_read_student_diary.sql` | Admin read of attempts, media rows, and media objects. Policies now use `is_admin()` |
 | `202610080006_studio_access.sql` | `has_studio_access()`; diary and schedule policies require it |
 | `202610090001_admin_clients.sql` | `client_passes` insert/update become `is_admin()`; `admin_profile_emails()` |
 | `202610090002_public_journals.sql` | `profiles.journal_public`, peer read policies, `attempt_likes`, `attempt_comments`, `private` helpers |
 | `20261012201704_remove_instructor_role.sql` | Drops the instructor role and `attempt_instructor_notes`. Former `is_staff()` checks become `is_admin()`. Applied migration files still contain the old words |
+| `20261012210351_remove_held_stage.sql` | Rewrites `element_attempts.stage = held` to `in_progress` and rebuilds `attempt_stage` as `trying \| in_progress \| mastered` |
 
 Storage: `media` is private (`user/{uid}/attempt/{attemptId}/...`). `catalog` is public read. The database stores paths.
 
@@ -196,6 +197,7 @@ These are implemented in SQL and TypeScript and are not proven by an automated d
 - Issuing or renewing a pass on `/admin/clients` is what lets that client pass `studioAccessGuard`.
 - `book_session` spends one class and `cancel_booking` restores it only when the RPC says so.
 - The hosted project needs `20261012201704` before the app that no longer sends `instructor` can change roles. If `202610080001` has not been applied, the next `db push` still creates the demo class teacher, demo client, pass, and a week of sessions, then `20261012201704` sets that teacher's role to `student`.
+- The hosted project needs `20261012210351` before the app that no longer offers **Утримую** is served. That migration rewrites every `held` attempt to `in_progress`. A cached client that still submits `held` gets a database error until refresh.
 - The hosted Google provider, redirect URLs, and Recovery email template match the production origin. The repo only configures the local CLI path. Hosted email confirmation may still be on; the app treats an empty `identities` list on sign-up as an existing account.
 - Password recovery and setting a password on a Google-only user. The flow is in the app and the local recovery template; hosted SMTP and the dashboard template were not changed.
 - Saving a name on `/app/profile` is allowed by the existing own-row update policy and is not covered by an RLS test.

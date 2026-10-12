@@ -34,8 +34,8 @@ export interface Element {
   created_at: string;
 }
 
-/** Self-assessment stored on each diary attempt, from first tries through a reliable hold. */
-export type AttemptStage = 'trying' | 'in_progress' | 'held' | 'mastered';
+/** Self-assessment stored on each diary attempt, from first tries through a confident repetition. */
+export type AttemptStage = 'trying' | 'in_progress' | 'mastered';
 
 export interface ElementAttempt {
   id: string;

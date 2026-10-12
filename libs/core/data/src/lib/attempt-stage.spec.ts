@@ -22,7 +22,7 @@ describe('attempt stages', () => {
     });
     const laterSameDay = row({
       element_id: 'el',
-      stage: 'held',
+      stage: 'in_progress',
       date: '2026-10-01',
       created_at: '2026-10-01T19:00:00.000Z',
     });
@@ -39,8 +39,8 @@ describe('attempt stages', () => {
   });
 
   it('names forward, same, and backward stage changes', () => {
-    expect(stageDirection('trying', 'held')).toBe('forward');
-    expect(stageDirection('held', 'held')).toBe('same');
+    expect(stageDirection('trying', 'mastered')).toBe('forward');
+    expect(stageDirection('in_progress', 'in_progress')).toBe('same');
     expect(stageDirection('mastered', 'in_progress')).toBe('back');
   });
 
@@ -60,7 +60,7 @@ describe('attempt stages', () => {
       }),
       row({
         element_id: 'spin',
-        stage: 'held',
+        stage: 'in_progress',
         date: '2026-10-01',
         created_at: '2026-10-01T10:00:00.000Z',
       }),
@@ -73,7 +73,7 @@ describe('attempt stages', () => {
     ]);
 
     expect(summaries.get('spin')).toEqual({
-      stage: 'held',
+      stage: 'in_progress',
       attemptCount: 3,
       date: '2026-10-01',
       createdAt: '2026-10-01T10:00:00.000Z',
@@ -85,7 +85,7 @@ describe('attempt stages', () => {
   it('does not replace the current stage when a backdated attempt is logged', () => {
     const current = applyAttemptToSummary(undefined, {
       element_id: 'spin',
-      stage: 'held',
+      stage: 'in_progress',
       date: '2026-10-08',
       created_at: '2026-10-08T12:00:00.000Z',
     });
@@ -97,7 +97,7 @@ describe('attempt stages', () => {
       created_at: '2026-10-08T12:05:00.000Z',
     });
 
-    expect(next.stage).toBe('held');
+    expect(next.stage).toBe('in_progress');
     expect(next.attemptCount).toBe(2);
     expect(next.date).toBe('2026-10-08');
   });

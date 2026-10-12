@@ -91,7 +91,7 @@ type StepState = 'current' | 'reached' | 'upcoming';
         </header>
 
         @if (store.latestStage(); as latest) {
-          <ol aria-label="Поточний етап" class="grid grid-cols-4 gap-2">
+          <ol aria-label="Поточний етап" class="grid grid-cols-3 gap-2">
             @for (stage of stages; track stage) {
               <li [class]="stepClass(stepState(stage, latest))">
                 <span [class]="stepBarClass(stage, latest)"></span>

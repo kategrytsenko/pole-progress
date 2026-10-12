@@ -1,6 +1,6 @@
 # Pole Progress (MVP)
 
-The product is a student's personal training diary. Log an attempt on a pole element, mark a stage (`trying`, `in_progress`, `held`, `mastered`), and review a chronological photo and video timeline.
+The product is a student's personal training diary. Log an attempt on a pole element, mark a stage (`trying`, `in_progress`, `mastered`), and review a chronological photo and video timeline.
 
 Schedule and class booking stay in the app as an optional secondary area (`/app/schedule`). One studio = one Supabase project + one Angular deploy.
 

@@ -4,42 +4,36 @@ import type { AttemptProgressRow, AttemptStage, ElementAttempt } from './models'
 export const ATTEMPT_STAGES: readonly AttemptStage[] = [
   'trying',
   'in_progress',
-  'held',
   'mastered',
 ];
 
 export const ATTEMPT_STAGE_LABELS: Record<AttemptStage, string> = {
   trying: 'Пробую',
   in_progress: 'В процесі',
-  held: 'Утримую',
   mastered: 'Опановано',
 };
 
 export const ATTEMPT_STAGE_HINTS: Record<AttemptStage, string> = {
   trying: 'Ще шукаю положення і не тримаю елемент.',
   in_progress: 'Рух збирається, але ще нестабільно.',
-  held: 'Можу утримати елемент.',
   mastered: 'Повторюю впевнено.',
 };
 
 export const ATTEMPT_STAGE_PILL_CLASS: Record<AttemptStage, string> = {
   trying: 'bg-neutral-100 text-neutral-700',
   in_progress: 'bg-amber-100 text-amber-900',
-  held: 'bg-sky-100 text-sky-900',
   mastered: 'bg-primary/10 text-primary',
 };
 
 export const ATTEMPT_STAGE_MARK_CLASS: Record<AttemptStage, string> = {
   trying: 'bg-neutral-400',
   in_progress: 'bg-amber-500',
-  held: 'bg-sky-500',
   mastered: 'bg-primary',
 };
 
 export const ATTEMPT_STAGE_RING_CLASS: Record<AttemptStage, string> = {
   trying: 'ring-neutral-300',
   in_progress: 'ring-amber-400',
-  held: 'ring-sky-400',
   mastered: 'ring-primary',
 };
 

@@ -31,7 +31,6 @@ interface StudentDiaryState {
 const EMPTY_STAGE_COUNTS: Record<AttemptStage, number> = {
   trying: 0,
   in_progress: 0,
-  held: 0,
   mastered: 0,
 };
 
