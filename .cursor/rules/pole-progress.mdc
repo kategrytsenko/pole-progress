@@ -1,0 +1,118 @@
+---
+description: Core engineering, architecture, security, and workflow rules for Pole Progress
+alwaysApply: true
+----
+
+# Pole Progress — Project Rules
+
+## Mandatory project context
+
+At the beginning of every new task or chat:
+
+1. Read `docs/ROADMAP.md` before planning or modifying code.
+2. Use it to understand the product direction, completed features, planned work, known gaps and verification status.
+3. Inspect the actual repository when a roadmap statement matters to the task. The roadmap may be outdated; code and database migrations are the evidence.
+4. Do not reimplement features already marked DONE without first checking their implementation.
+5. If the roadmap file cannot be found or read, say so explicitly. Do not pretend it was read.
+
+## Mandatory roadmap maintenance
+
+Updating the roadmap is part of the definition of done for every feature task.
+
+After implementing a feature or completing a meaningful part of it:
+
+1. Update the roadmap in the same task.
+2. Record the actual implementation status, affected routes/libraries, migrations and tests where relevant.
+3. Separate implementation status from runtime/security verification. Use NEEDS VERIFICATION when a behavior has not actually been tested.
+4. Update remaining tasks and known limitations affected by the change.
+5. Do not mark unrelated work as complete or rewrite the roadmap unnecessarily.
+6. If implementation is incomplete or tests fail, record the partial status and remaining work rather than claiming DONE.
+7. Before finishing, confirm that the roadmap was updated and include its path in the final summary.
+
+Do not finish a feature task while silently leaving the roadmap outdated. If the roadmap cannot be updated, explain why.
+
+## Product and architecture
+
+* Pole Progress is an Angular 21 SPA for one pole-dance studio per deployment and Supabase project.
+* There is no `studio_id` or multi-studio tenant model.
+* The student's personal training diary and progress tracker is the primary product experience.
+* Preserve existing functionality unless the task explicitly changes it.
+* Before implementing a feature, inspect the existing routes, components, stores, data APIs, migrations, and tests. Reuse the existing architecture rather than creating parallel implementations.
+* Do not rewrite existing features merely to fit a preferred pattern.
+
+## Stack
+
+* Angular 21, standalone components, signals, `ChangeDetectionStrategy.OnPush`.
+* Tailwind CSS for styling; avoid component CSS unless utility classes are insufficient.
+* Nx workspace. Use existing project targets and dependencies.
+* Strict TypeScript. No `any`.
+* Use `inject()`, typed public APIs, private state signals, and public computed signals where appropriate.
+* UI copy must be Ukrainian.
+
+## Library boundaries
+
+* Follow `eslint.config.mjs` and existing Nx module boundaries.
+* `@org/data` must not import `@org/auth`.
+* Supabase database and Storage I/O belongs in `@org/data`, except authentication-specific operations in the existing auth layer.
+* Keep business logic out of presentational components.
+* Prefer the smallest change consistent with the existing architecture. Do not add abstractions without a concrete need.
+
+## Supabase and database changes
+
+* SQL schema changes must be represented by a new file in `supabase/migrations/`.
+* Never edit a migration that has already been applied to a shared or production database. Create a new migration instead.
+* Inspect existing tables, constraints, indexes, triggers, functions, grants, and RLS policies before changing the schema.
+* Preserve existing behavior unless the task explicitly changes it.
+* Every new table must have deliberate grants and RLS policies. Review SELECT, INSERT, UPDATE, and DELETE independently.
+* Do not treat Angular guards or hidden UI controls as security boundaries. Enforce authorization in the database/RPC layer as appropriate.
+* Never weaken existing role restrictions, staff access, ownership checks, or Storage access rules without an explicit product requirement.
+* Never trust a client-supplied user ID, role, ownership field, or studio-access claim without database-side validation.
+* Keep database rows storing Storage paths; resolve private media through signed URLs where appropriate.
+* Review the effects of foreign keys, cascades, nullable references, defaults, and existing data before destructive schema changes.
+* When a feature changes both the schema and application code, identify the required migration and a safe deployment order.
+
+## Auth and user data
+
+* Distinguish `auth.users`, Auth identities, and `public.profiles`.
+* Do not assume equal emails imply linked identities or that every Auth user automatically has a valid profile.
+* Preserve existing account IDs and foreign-key relationships.
+* Never delete, merge, recreate, or silently reassign production users as a shortcut.
+* Never allow ordinary users to grant themselves elevated roles.
+* Treat missing profiles, OAuth callbacks, and provider linking as explicit flows that require testing.
+
+## Database safety
+
+* Never run `supabase db reset`, destructive SQL, production deletes, or data-rewriting scripts against a remote database without explicit user approval and a reviewed recovery plan.
+* Do not reset the local database unless the user has agreed that local data can be discarded.
+* Before applying production migrations, inspect the target project and migration plan. Prefer `supabase db push --dry-run` followed by `supabase db push`.
+* Do not run production-changing commands as part of an automatic implementation workflow.
+* Never expose secret keys, access tokens, passwords, or session data. Frontend code may use only the appropriate public/publishable Supabase key.
+
+## Implementation workflow
+
+1. Inspect relevant existing code and state assumptions.
+2. Summarize the implementation plan and identify database/security implications.
+3. Implement the smallest complete change.
+4. Add or update tests for relevant behavior and pure helpers.
+5. Run the applicable Nx tests and lint targets, then `npx nx build app`.
+6. Report exact files changed, commands run, results, migration requirements, manual test steps, and unresolved risks.
+
+* Never claim a test or command passed unless it was actually run and passed.
+* If a command fails, report the error rather than hiding or bypassing it.
+* Do not silently skip required checks. If checks cannot run, explain why.
+
+## Git and deployment
+
+* Do not commit, push, deploy, or apply remote migrations unless explicitly asked.
+* `git push` publishes code to GitHub; Vercel deployment depends on the configured Git integration and branch.
+* `supabase db push` applies pending migrations to the linked remote Supabase project; it does not deploy frontend code.
+* Keep local development and production configuration distinct.
+* Do not change production environment configuration or project linkage without explicit approval.
+
+## Communication
+
+* Avoid asking the user to repeat constraints already recorded in project rules or the roadmap.
+* Ask questions only when a missing decision materially affects correctness, security, or product behavior.
+* For ambiguous implementation choices, inspect the code and propose a default before adding complexity.
+* Explain important architectural or database decisions briefly in terms a frontend developer can verify.
+* Keep final reports concise, concrete, and honest.
