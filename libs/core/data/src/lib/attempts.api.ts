@@ -1,24 +1,15 @@
 import { inject, Injectable } from '@angular/core';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SUPABASE_CLIENT } from '@org/supabase';
-import {
-  instructorNoteBody,
-  mapElementAttempt,
-  readInstructorFeedback,
-  type ElementAttemptRow,
-} from './attempt-feedback';
+import { mapElementAttempt, type ElementAttemptRow } from './attempt-feedback';
 import type {
-  AttemptInstructorFeedback,
   AttemptProgressRow,
   CreateAttemptInput,
   ElementAttempt,
   UpdateAttemptInput,
-  UpsertInstructorFeedbackInput,
 } from './models';
 
-const ATTEMPT_COLUMNS =
-  'id, element_id, user_id, date, note, stage, created_at, attempt_instructor_notes(author_id, body, updated_at, author:profiles(name))';
-const NOTE_COLUMNS = 'author_id, body, updated_at, author:profiles(name)';
+const ATTEMPT_COLUMNS = 'id, element_id, user_id, date, note, stage, created_at';
 const PROGRESS_COLUMNS = 'element_id, stage, date, created_at';
 
 @Injectable({ providedIn: 'root' })
@@ -32,7 +23,7 @@ export class AttemptsApi {
 
   /**
    * Attempts for one element and one student.
-   * Staff can read any diary. A peer receives rows only while that journal is public.
+   * An admin can read any diary. A peer receives rows only while that journal is public.
    */
   async listAttemptsForElement(elementId: string, userId: string): Promise<ElementAttempt[]> {
     await this.requireUid();
@@ -45,7 +36,7 @@ export class AttemptsApi {
     return this.queryProgressRows(uid);
   }
 
-  /** Stage rows for one student. Staff read every diary. A peer receives rows only while that journal is public. */
+  /** Stage rows for one student. An admin reads every diary. A peer receives rows only while that journal is public. */
   async listProgressRows(userId: string): Promise<AttemptProgressRow[]> {
     await this.requireUid();
     return this.queryProgressRows(userId);
@@ -89,32 +80,6 @@ export class AttemptsApi {
     if (error) throw error;
     if (!data) throw new Error('Attempt not found');
     return mapElementAttempt(data);
-  }
-
-  /** Staff-only. RLS rejects the write when the caller is not staff. */
-  async upsertInstructorFeedback(
-    input: UpsertInstructorFeedbackInput,
-  ): Promise<AttemptInstructorFeedback> {
-    const uid = await this.requireUid();
-    const body = instructorNoteBody(input.body);
-
-    const { data, error } = await this.client
-      .from('attempt_instructor_notes')
-      .upsert(
-        {
-          attempt_id: input.attemptId,
-          author_id: uid,
-          body,
-        },
-        { onConflict: 'attempt_id' },
-      )
-      .select(NOTE_COLUMNS)
-      .single();
-
-    if (error) throw error;
-    const feedback = readInstructorFeedback(data);
-    if (!feedback) throw new Error('Instructor note was not saved');
-    return feedback;
   }
 
   async deleteAttempt(id: string): Promise<void> {

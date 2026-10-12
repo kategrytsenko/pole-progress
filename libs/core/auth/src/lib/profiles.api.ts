@@ -2,7 +2,7 @@ import { inject, Injectable } from '@angular/core';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SUPABASE_CLIENT } from '@org/supabase';
 
-export type UserRole = 'admin' | 'instructor' | 'student';
+export type UserRole = 'admin' | 'student';
 
 export interface StudioProfile {
   id: string;
@@ -19,14 +19,6 @@ interface ProfileEmailRow {
 @Injectable({ providedIn: 'root' })
 export class ProfilesApi {
   private readonly client = inject<SupabaseClient>(SUPABASE_CLIENT);
-
-  isInstructor(role: UserRole | null): boolean {
-    return role === 'instructor';
-  }
-
-  isStaff(role: UserRole | null): boolean {
-    return role === 'admin' || role === 'instructor';
-  }
 
   async getMyProfile(): Promise<StudioProfile | null> {
     const userId = await this.currentUserId();
@@ -65,7 +57,7 @@ export class ProfilesApi {
     const userId = await this.currentUserId();
     if (!userId) return null;
 
-    // Staff can select every profile, so the query must be scoped to this user.
+    // An admin can select every profile, so the query must be scoped to this user.
     const { data, error } = await this.client
       .from('profiles')
       .select('role')
@@ -76,7 +68,7 @@ export class ProfilesApi {
     return (data?.role as UserRole | undefined) ?? null;
   }
 
-  /** Staff can read every profile. A client receives only their own row. */
+  /** An admin can read every profile. A client receives only their own row. */
   async listProfiles(): Promise<StudioProfile[]> {
     const { data, error } = await this.client
       .from('profiles')
@@ -122,7 +114,7 @@ export class ProfilesApi {
   /**
    * Database membership check. Prefers `has_studio_access()` and, if that
    * function is not migrated yet, falls back to an active `client_passes` row.
-   * Staff bypass lives in `resolveStudioAccess`, not in the fallback query.
+   * The admin bypass lives in `resolveStudioAccess`, not in the fallback query.
    */
   async hasStudioAccess(): Promise<boolean> {
     const { data, error } = await this.client.rpc('has_studio_access');

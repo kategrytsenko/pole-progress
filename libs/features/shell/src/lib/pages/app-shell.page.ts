@@ -68,9 +68,6 @@ interface ShellNavItem {
               @case ('admin') {
                 <span class="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">Адмін</span>
               }
-              @case ('instructor') {
-                <span class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">Інструктор</span>
-              }
               @case ('student') {
                 <span class="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600">Клієнт</span>
               }
@@ -141,7 +138,7 @@ export class AppShellPage {
         emphasis: 'optional',
       },
     ];
-    if (this.auth.isStaff()) {
+    if (this.auth.isAdmin()) {
       items.push({
         link: '/app/students',
         label: 'Учні',

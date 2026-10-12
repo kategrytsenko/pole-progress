@@ -25,8 +25,6 @@ import { DashboardStore } from '@org/dashboard';
 import { StateBlockComponent, ToastService } from '@org/shell';
 import { AddAttemptDialogComponent } from '../components/add-attempt-dialog.component';
 import { AttemptReactionsComponent } from '../components/attempt-reactions.component';
-import { InstructorFeedbackComponent } from '../components/instructor-feedback.component';
-import { InstructorNoteFormComponent } from '../components/instructor-note-form.component';
 import { ElementStore, type MediaItemView } from '../element.store';
 
 type DiaryView = 'own' | 'staff' | 'journal';
@@ -40,8 +38,6 @@ type StepState = 'current' | 'reached' | 'upcoming';
     RouterLink,
     AddAttemptDialogComponent,
     AttemptReactionsComponent,
-    InstructorFeedbackComponent,
-    InstructorNoteFormComponent,
     StateBlockComponent,
   ],
   providers: [ElementStore],
@@ -80,11 +76,7 @@ type StepState = 'current' | 'reached' | 'upcoming';
             </div>
           </div>
 
-          @if (showInstructorForm) {
-            <p class="max-w-sm text-sm text-neutral-600">
-              Спроби змінює учень. Коментар інструктора можна додати до кожного запису.
-            </p>
-          } @else if (canEditAttempts) {
+          @if (canEditAttempts) {
             <button
               type="button"
               (click)="onAddAttempt()"
@@ -198,18 +190,6 @@ type StepState = 'current' | 'reached' | 'upcoming';
                       <p class="mt-3 whitespace-pre-wrap text-sm text-neutral-700">{{ entry.attempt.note }}</p>
                     }
 
-                    @if (showInstructorForm) {
-                      <pp-instructor-note-form
-                        class="mt-3 block"
-                        [attemptId]="entry.attempt.id"
-                        [feedback]="entry.attempt.instructor_feedback"
-                        [saving]="store.savingFeedbackId() === entry.attempt.id"
-                        (saveNote)="onSaveFeedback(entry.attempt.id, $event)"
-                      />
-                    } @else if (canEditAttempts && entry.attempt.instructor_feedback; as feedback) {
-                      <pp-instructor-feedback class="mt-3 block" [feedback]="feedback" />
-                    }
-
                     <p class="mt-3 text-xs text-neutral-500">{{ mediaSummary(entry.media) }}</p>
 
                     @if (entry.media.length > 0) {
@@ -284,7 +264,6 @@ export class ElementPage implements OnInit {
   protected viewerId: string | null = null;
   protected diary: DiaryView = 'own';
   protected canEditAttempts = true;
-  protected showInstructorForm = false;
   protected backLink: string | readonly string[] = '/app';
   protected backLabel = 'До щоденника';
   private readonly dashboard = inject(DashboardStore);
@@ -356,22 +335,12 @@ export class ElementPage implements OnInit {
     }
   }
 
-  protected async onSaveFeedback(attemptId: string, body: string): Promise<void> {
-    try {
-      await this.store.saveInstructorFeedback(attemptId, body);
-      this.toasts.success('Коментар збережено');
-    } catch (err: unknown) {
-      this.toasts.error(err instanceof Error ? err.message : 'Не вдалося зберегти коментар');
-    }
-  }
-
   private applyRoute(): void {
     this.diary = this.diaryFromRoute();
     const studentId = this.diary === 'own' ? null : this.studentIdFromRoute();
     this.viewerId = this.auth.user()?.id ?? null;
     this.canEditAttempts =
       this.diary === 'own' || (this.viewerId !== null && studentId === this.viewerId);
-    this.showInstructorForm = this.auth.isStaff() && !this.canEditAttempts;
 
     if (this.diary === 'staff' && studentId) {
       this.backLink = ['/app/students', studentId];

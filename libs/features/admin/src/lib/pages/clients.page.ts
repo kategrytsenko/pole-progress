@@ -21,12 +21,11 @@ import { addInputDays, inputDateEndIso, inputDateFromIso, inputDateStartIso, tod
 
 const ROLE_OPTIONS: readonly { value: UserRole; label: string }[] = [
   { value: 'student', label: 'Клієнт' },
-  { value: 'instructor', label: 'Інструктор' },
   { value: 'admin', label: 'Адмін' },
 ];
 
 function isUserRole(value: string): value is UserRole {
-  return value === 'student' || value === 'instructor' || value === 'admin';
+  return value === 'student' || value === 'admin';
 }
 
 function roleLabel(role: UserRole): string {

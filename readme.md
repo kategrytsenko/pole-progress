@@ -45,7 +45,7 @@ supabase db reset
 
 The default role for any new user is `student`. To grant `admin`:
 
-1. Sign in at <http://localhost:4200/sign-in> with email and password, or with Google after the setup below. Password recovery is at <http://localhost:4200/forgot-password> (Mailpit). Profile and password settings are at <http://localhost:4200/app/profile>. Local demo accounts from the schedule migration: `instructor.demo@pole.local` and `client.demo@pole.local`, password `demo-local-only`.
+1. Sign in at <http://localhost:4200/sign-in> with email and password, or with Google after the setup below. Password recovery is at <http://localhost:4200/forgot-password> (Mailpit). Profile and password settings are at <http://localhost:4200/app/profile>. Local demo accounts from the schedule migration: `instructor.demo@pole.local` (class teacher, role `student`) and `client.demo@pole.local`, password `demo-local-only`. The teacher account needs an active pass to open `/app`.
 2. Find your user id in Supabase Studio → `auth.users`.
 3. Run in SQL Editor (or via `supabase/snippets/Set admin role.sql`):
    ```sql
@@ -70,29 +70,19 @@ The default role for any new user is `student`. To grant `admin`:
 
 Scopes Google should allow: `openid`, `userinfo.email`, and `userinfo.profile`.
 
-## Promote a user to instructor
+## Roles
 
-`student` stays the database value for clients (the shell shows **Клієнт**). `instructor` is staff together with `admin` (`is_staff()`), but only an admin can change `profiles.role`. After that person has signed in once:
-
-```sql
-update public.profiles
-set role = 'instructor'
-where id = '<user-id>';
-```
-
-Use `role = 'admin'` for a full admin. Sign out and back in so `AuthStore` reloads the role. These statements run as the database owner; a client cannot self-promote through the API.
-
-After the first admin exists, later role changes are done in the app at `/admin/clients`. That page is behind `adminOnlyGuard`, and Postgres still rejects a role change unless `is_admin()` is true.
+`student` is the database value for clients (the shell shows **Клієнт**). `admin` is the only other role. A client cannot change `profiles.role`. After the first admin exists, later role changes are done in the app at `/admin/clients`. That page is behind `adminOnlyGuard`, and Postgres rejects a role change unless `is_admin()` is true.
 
 ## Studio access
 
-Signing in is not enough to open `/app`. Staff (`admin`, `instructor`) go straight in. A client needs an **active** `client_passes` row: `status = 'active'` and the current time between `valid_from` and `valid_until`. Anyone else lands on `/access-pending`.
+Signing in is not enough to open `/app`. An admin goes straight in. A client needs an **active** `client_passes` row: `status = 'active'` and the current time between `valid_from` and `valid_until`. Anyone else lands on `/access-pending`.
 
 The same rule is `public.has_studio_access()` in `supabase/migrations/202610080006_studio_access.sql`. Apply it with `supabase db reset` or `supabase migration up`. Sessions stay in the browser (`persistSession`), so a reload keeps the user signed in and re-checks membership.
 
 ## Public journals
 
-Journals are private until the owner turns on **Публічний щоденник** on `/app`. Peers with studio access can then open `/app/journals`, read that diary’s attempts, photos, and videos, and leave a like or a comment. Turning the journal private hides it again, including media. Staff still read every diary at `/app/students`.
+Journals are private until the owner turns on **Публічний щоденник** on `/app`. Peers with studio access can then open `/app/journals`, read that diary’s attempts, photos, and videos, and leave a like or a comment. Turning the journal private hides it again, including media. An admin still reads every diary at `/app/students`.
 
 ## Admin: clients
 
@@ -126,7 +116,7 @@ Path aliases live in `tsconfig.base.json`. Module-boundary tags are enforced in 
 
 Two buckets are provisioned via migrations:
 
-- **`media`** — *private*. Per-user paths `user/{uid}/attempt/{attemptId}/{stamp}-{name}`. The owner writes their own prefix. Staff can read every object. A peer with studio access can read that prefix only while the owner’s journal is public. 100 MB limit, image+video mime allowlist (`202601240004` / `202601240005`).
+- **`media`** — *private*. Per-user paths `user/{uid}/attempt/{attemptId}/{stamp}-{name}`. The owner writes their own prefix. An admin can read every object. A peer with studio access can read that prefix only while the owner’s journal is public. 100 MB limit, image+video mime allowlist (`202601240004` / `202601240005`).
 - **`catalog`** — *public read, admin-only write*. Used for category/element artwork (`element/{id}/...`). `SELECT` open to `anon` + `authenticated`; `INSERT/UPDATE/DELETE` gated by `public.is_admin()`. 10 MB, image mime allowlist (`202601240007`).
 
 DB rows store the storage **path**, not a URL. The app resolves private media via `storage.createSignedUrl(path, ttl)` on demand.

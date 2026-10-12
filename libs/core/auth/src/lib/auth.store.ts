@@ -50,8 +50,6 @@ export class AuthStore {
 
   readonly isAuthed = computed<boolean>(() => this.user() !== null);
   readonly isAdmin = computed<boolean>(() => this.role() === 'admin');
-  readonly isInstructor = computed<boolean>(() => this.profiles.isInstructor(this.role()));
-  readonly isStaff = computed<boolean>(() => this.profiles.isStaff(this.role()));
   readonly hasStudioAccess = computed<boolean>(() => this.studioAccess() === 'allowed');
   readonly accessResolved = computed<boolean>(() => {
     if (this.loading()) return false;
@@ -343,9 +341,9 @@ export class AuthStore {
     const role = roleResult.status === 'fulfilled' ? roleResult.value : null;
     const accessOk = accessResult.status === 'fulfilled';
     const databaseAllows = accessOk ? accessResult.value : false;
-    const staff = role === 'admin' || role === 'instructor';
+    const admin = role === 'admin';
 
-    if (staff || accessOk) {
+    if (admin || accessOk) {
       this.state.update((s) =>
         s.user?.id === userId
           ? {

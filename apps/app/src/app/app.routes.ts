@@ -1,5 +1,5 @@
 import { Route } from '@angular/router';
-import { ProfilePage, authRoutes, staffOnlyGuard, studioAccessGuard } from '@org/auth';
+import { ProfilePage, adminOnlyGuard, authRoutes, studioAccessGuard } from '@org/auth';
 
 export const appRoutes: Route[] = [
   ...authRoutes,
@@ -34,7 +34,7 @@ export const appRoutes: Route[] = [
           },
           {
             path: 'students',
-            canMatch: [studioAccessGuard, staffOnlyGuard],
+            canMatch: [studioAccessGuard, adminOnlyGuard],
             loadChildren: () => import('@org/students').then((mod) => mod.studentsRoutes),
           },
           {

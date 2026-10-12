@@ -21,7 +21,7 @@ describe('buildClientDirectory', () => {
     const rows = buildClientDirectory(
       [
         { id: 'student', name: '  Демо клієнт  ', role: 'student' },
-        { id: 'coach', name: null, role: 'instructor' },
+        { id: 'coach', name: null, role: 'admin' },
       ],
       new Map([['student', 'client.demo@pole.local']]),
       [
@@ -43,7 +43,7 @@ describe('buildClientDirectory', () => {
         id: 'coach',
         name: 'Без імені',
         email: null,
-        role: 'instructor',
+        role: 'admin',
         membership: null,
       },
     ]);

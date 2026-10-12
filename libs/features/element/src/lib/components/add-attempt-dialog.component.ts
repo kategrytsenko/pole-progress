@@ -21,7 +21,6 @@ import {
 } from '@org/data';
 import { ToastService } from '@org/shell';
 import { ElementStore, type MediaItemView } from '../element.store';
-import { InstructorFeedbackComponent } from './instructor-feedback.component';
 
 const ACCEPT = 'image/jpeg,image/png,image/webp,video/mp4';
 const ALLOWED_PREFIXES: readonly string[] = ['image/', 'video/'];
@@ -40,7 +39,7 @@ function isAllowedFile(file: File): boolean {
 
 @Component({
   selector: 'pp-add-attempt-dialog',
-  imports: [FormsModule, InstructorFeedbackComponent],
+  imports: [FormsModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <dialog
@@ -96,10 +95,6 @@ function isAllowedFile(file: File): boolean {
             </div>
             <p class="text-xs text-neutral-500">{{ hint(stage()) }}</p>
           </fieldset>
-
-          @if (instructorFeedback(); as feedback) {
-            <pp-instructor-feedback class="block" [feedback]="feedback" />
-          }
 
           <label class="flex flex-col gap-1 text-sm">
             <span class="font-medium text-neutral-800">Нотатка <span class="font-normal text-neutral-400">(необов'язково)</span></span>
@@ -229,9 +224,6 @@ export class AddAttemptDialogComponent {
   private readonly editingAttempt = signal<ElementAttempt | null>(null);
 
   protected readonly isEditing = computed(() => this.editingAttempt() !== null);
-  protected readonly instructorFeedback = computed(
-    () => this.editingAttempt()?.instructor_feedback ?? null,
-  );
   protected readonly existingMedia = computed<readonly MediaItemView[]>(() => {
     const attemptId = this.editingAttempt()?.id;
     if (!attemptId) return [];

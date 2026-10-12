@@ -33,7 +33,6 @@ interface ElementState {
   unavailable: boolean;
   loading: boolean;
   saving: boolean;
-  savingFeedbackId: string | null;
   savingLikeId: string | null;
   savingCommentAttemptId: string | null;
   error: string | null;
@@ -52,7 +51,6 @@ const INITIAL_STATE: ElementState = {
   unavailable: false,
   loading: true,
   saving: false,
-  savingFeedbackId: null,
   savingLikeId: null,
   savingCommentAttemptId: null,
   error: null,
@@ -93,7 +91,6 @@ export class ElementStore {
   readonly unavailable = computed<boolean>(() => this.state().unavailable);
   readonly loading = computed<boolean>(() => this.state().loading);
   readonly saving = computed<boolean>(() => this.state().saving);
-  readonly savingFeedbackId = computed<string | null>(() => this.state().savingFeedbackId);
   readonly savingLikeId = computed<string | null>(() => this.state().savingLikeId);
   readonly savingCommentAttemptId = computed<string | null>(
     () => this.state().savingCommentAttemptId,
@@ -249,24 +246,6 @@ export class ElementStore {
       }));
     } catch (err: unknown) {
       this.state.update((s) => ({ ...s, savingCommentAttemptId: null }));
-      throw err;
-    }
-  }
-
-  /** Staff-only write. The student's attempt text and stage stay unchanged. */
-  async saveInstructorFeedback(attemptId: string, body: string): Promise<void> {
-    this.state.update((s) => ({ ...s, savingFeedbackId: attemptId }));
-    try {
-      const feedback = await this.attempts.upsertInstructorFeedback({ attemptId, body });
-      this.state.update((s) => ({
-        ...s,
-        savingFeedbackId: null,
-        attempts: s.attempts.map((existing) =>
-          existing.id === attemptId ? { ...existing, instructor_feedback: feedback } : existing,
-        ),
-      }));
-    } catch (err: unknown) {
-      this.state.update((s) => ({ ...s, savingFeedbackId: null }));
       throw err;
     }
   }
