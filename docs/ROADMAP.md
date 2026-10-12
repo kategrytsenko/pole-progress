@@ -63,12 +63,12 @@ flowchart TB
 
 ### Auth, roles, and studio access — DONE
 
-- Routes: `/sign-in`, `/auth/callback`, `/access-pending`, `/forbidden` in [`libs/core/auth/src/lib/auth.routes.ts`](../libs/core/auth/src/lib/auth.routes.ts) and [`apps/app/src/app/app.routes.ts`](../apps/app/src/app/app.routes.ts).
-- Password, magic link, and Google OAuth in [`libs/core/auth`](../libs/core/auth). Google for local Auth is configured in `supabase/config.toml` plus a gitignored `.env` (names in `.env.example`).
-- Roles: `student` (UI: Клієнт), `instructor`, `admin`. Helpers `is_admin()`, `is_instructor()`, `is_staff()`, `profile_role_text()` in [`supabase/migrations/202610070001_roles_instructor.sql`](../supabase/migrations/202610070001_roles_instructor.sql). A client cannot change `profiles.role`; an admin can, including from `/admin/clients`.
-- Shell nav in [`libs/features/shell/src/lib/pages/app-shell.page.ts`](../libs/features/shell/src/lib/pages/app-shell.page.ts).
-- `/app` and `/admin` use `studioAccessGuard`. Staff enter without a pass. A client needs an active `client_passes` row (`status = 'active'` and now between `valid_from` and `valid_until`). Others land on `/access-pending`. Database rule: `public.has_studio_access()` in [`supabase/migrations/202610080006_studio_access.sql`](../supabase/migrations/202610080006_studio_access.sql).
-- Tests: [`libs/core/auth/src/lib/studio-access.spec.ts`](../libs/core/auth/src/lib/studio-access.spec.ts), [`libs/core/data/src/lib/membership.spec.ts`](../libs/core/data/src/lib/membership.spec.ts). Playwright covers only the unauthenticated redirect to `/sign-in`.
+- Routes: `/sign-in`, `/forgot-password`, `/auth/callback`, `/access-pending`, `/forbidden`, and `/app/profile` in [`libs/core/auth/src/lib/auth.routes.ts`](../libs/core/auth/src/lib/auth.routes.ts), [`libs/features/shell/src/lib/shell.routes.ts`](../libs/features/shell/src/lib/shell.routes.ts), and [`apps/app/src/app/app.routes.ts`](../apps/app/src/app/app.routes.ts).
+- Email and password, plus Google OAuth, in [`libs/core/auth`](../libs/core/auth). Magic link and Instagram are removed. Google for local Auth is configured in `supabase/config.toml` plus a gitignored `.env` (names in `.env.example`). Password recovery is `/forgot-password`, then `/auth/callback?token_hash&type=recovery`, using [`supabase/templates/recovery.html`](../supabase/templates/recovery.html). `/app/profile` edits `profiles.name`, shows the session email, and sets a password on the current Auth user. Passwords stay in Supabase Auth.
+- Roles: `student` (UI: Клієнт), `instructor`, `admin`. Helpers `is_admin()`, `is_instructor()`, `is_staff()`, `profile_role_text()` in [`supabase/migrations/202610070001_roles_instructor.sql`](../supabase/migrations/202610070001_roles_instructor.sql). A client cannot change `profiles.role`; an admin can, including from `/admin/clients`. Name edits update only `profiles.name`.
+- Shell nav in [`libs/features/shell/src/lib/pages/app-shell.page.ts`](../libs/features/shell/src/lib/pages/app-shell.page.ts). **Профіль** is in the header.
+- `/admin` and the diary, schedule, journals, and students routes use `studioAccessGuard`. The shell uses `authOnlyGuard`, so `/app/profile` stays open without a pass. Staff enter the diary without a pass. A client needs an active `client_passes` row (`status = 'active'` and now between `valid_from` and `valid_until`). Others land on `/access-pending`. Database rule: `public.has_studio_access()` in [`supabase/migrations/202610080006_studio_access.sql`](../supabase/migrations/202610080006_studio_access.sql).
+- Tests: [`libs/core/auth/src/lib/studio-access.spec.ts`](../libs/core/auth/src/lib/studio-access.spec.ts) covers access rules, sign-up identity classification, OTP types, and auth error copy. [`libs/core/data/src/lib/membership.spec.ts`](../libs/core/data/src/lib/membership.spec.ts) covers membership dates. Playwright covers only the unauthenticated redirect to `/sign-in`.
 
 ### Catalog, branding, and the owner's diary — DONE
 
@@ -164,7 +164,7 @@ Storage: `media` is private (`user/{uid}/attempt/{attemptId}/...`). `catalog` is
 Local app and database:
 
 1. `npm i`
-2. `supabase start` (Studio `http://127.0.0.1:54323`, Mailpit `http://127.0.0.1:54324`, API `http://127.0.0.1:54321`)
+2. `supabase start` (Studio `http://127.0.0.1:54323`, Mailpit `http://127.0.0.1:54324`, API `http://127.0.0.1:54321`). Local `[analytics]` stays off: Colima's sshfs mount cannot pass the Docker socket to Vector, and that unhealthy container stops the stack.
 3. `npx nx serve app` → `http://localhost:4200`
 4. The Angular app reads `apps/app/src/environments/environment.development.ts`. It does not load `.env`. `.env` is for the Supabase CLI (Google client id and secret).
 
@@ -179,7 +179,7 @@ GitHub and the static frontend:
 1. `git push` publishes the branch. Vercel deploys only if that project's Git integration is already pointed at this repo. This repository has no `vercel.json`.
 2. CI ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) runs on pull requests and `main`: `npx nx run-many -t lint test build typecheck e2e`.
 3. Production client config is build-time in `apps/app/src/environments/environment.ts` (hosted Supabase URL and publishable key). `npx nx build app` writes `dist/apps/app/`. The host must serve the SPA with a fallback to `index.html`.
-4. In the hosted Supabase project, set **Authentication → URL Configuration** so magic link and Google return to `${origin}/auth/callback`. Enable Google there separately from local `config.toml`.
+4. In the hosted Supabase project, set **Authentication → URL Configuration** so Google and password recovery return to `${origin}/auth/callback`. Enable Google there separately from local `config.toml`. Copy [`supabase/templates/recovery.html`](../supabase/templates/recovery.html) into the hosted Recovery template (`token_hash`, `type=recovery`). Leave the Email provider enabled. Magic link and Instagram are not offered.
 
 Production database:
 
@@ -198,7 +198,9 @@ These are implemented in SQL and TypeScript and are not proven by an automated d
 - Issuing or renewing a pass on `/admin/clients` is what lets that client pass `studioAccessGuard`.
 - `book_session` spends one class and `cancel_booking` restores it only when the RPC says so.
 - The hosted project already has every migration through `202610090002`. If `202610080001` has not been applied, the next `db push` will create the demo instructor, demo client, pass, and a week of sessions on that database.
-- The hosted Google provider and redirect URLs match the production origin. The repo only configures the local CLI path.
+- The hosted Google provider, redirect URLs, and Recovery email template match the production origin. The repo only configures the local CLI path. Hosted email confirmation may still be on; the app treats an empty `identities` list on sign-up as an existing account.
+- Password recovery and setting a password on a Google-only user. The flow is in the app and the local recovery template; hosted SMTP and the dashboard template were not changed.
+- Saving a name on `/app/profile` is allowed by the existing own-row update policy and is not covered by an RLS test.
 
 ## Technical debt
 
@@ -212,4 +214,4 @@ Separate from product scope:
 
 ## Explicitly out of scope
 
-Payments, multi-studio or `studio_id`, waitlists, mobile native, email or SMS reminders, Analog file-based routing, replacing the current auth methods, and deleting the schedule and booking module.
+Payments, multi-studio or `studio_id`, waitlists, mobile native, email or SMS reminders, Analog file-based routing, additional auth providers, account merging, and deleting the schedule and booking module.

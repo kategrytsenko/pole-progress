@@ -22,6 +22,9 @@ export function toAuthError(err: unknown, fallback = 'Не вдалось уві
   ) {
     return 'Цей email уже зареєстрований. Увійди з паролем.';
   }
+  if (normalized.includes('email not confirmed') || normalized.includes('not confirmed')) {
+    return 'Спочатку підтверди email. Перевір пошту і відкрий лист від студії.';
+  }
   if (
     normalized.includes('password')
     && (normalized.includes('at least')
@@ -38,10 +41,28 @@ export function toAuthError(err: unknown, fallback = 'Не вдалось уві
   ) {
     return 'Цей спосіб входу ще не підключений у студії. Скористайся email і паролем.';
   }
+  if (normalized.includes('magic link sign-in is disabled')) {
+    return 'Вхід за посиланням більше не підтримується. Увійди з паролем або віднови його.';
+  }
+  if (normalized.includes('unsupported email link')) {
+    return 'Посилання недійсне. Запроси нове або увійди з паролем.';
+  }
   if (normalized.includes('rate limit') || normalized.includes('too many') || normalized.includes('email rate')) {
     return 'Забагато запитів. Зачекай трохи або увійди з паролем.';
   }
-  if (normalized.includes('expired') || normalized.includes('invalid') || normalized.includes('otp')) {
+  if (
+    normalized.includes('access_denied')
+    || normalized.includes('access denied')
+    || normalized.includes('user denied')
+    || normalized.includes('cancel')
+  ) {
+    return 'Вхід скасовано. Можна спробувати ще раз.';
+  }
+  if (
+    normalized.includes('expired')
+    || normalized.includes('otp')
+    || (normalized.includes('invalid') && (normalized.includes('link') || normalized.includes('token_hash')))
+  ) {
     return 'Посилання недійсне або застаріло. Запроси нове.';
   }
 

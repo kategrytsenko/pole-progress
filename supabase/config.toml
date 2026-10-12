@@ -225,11 +225,11 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
-# Magic link lands on the app with token_hash so it works in any browser.
+# Recovery lands on the app with token_hash so the link works in any browser.
 # The PKCE code flow only succeeds in the browser that requested the email.
-[auth.email.template.magic_link]
-subject = "Your Magic Link"
-content_path = "./supabase/templates/magic_link.html"
+[auth.email.template.recovery]
+subject = "Відновлення пароля"
+content_path = "./supabase/templates/recovery.html"
 
 # Uncomment to customize email template
 # [auth.email.template.invite]
@@ -307,7 +307,7 @@ max_frequency = "5s"
 # Use an external OAuth provider. The full list of providers are: `apple`, `azure`, `bitbucket`,
 # `discord`, `facebook`, `github`, `gitlab`, `google`, `keycloak`, `linkedin_oidc`, `notion`, `twitch`,
 # `twitter`, `x`, `slack`, `spotify`, `workos`, `zoom`.
-# Instagram is not a GoTrue provider. The sign-in screen keeps it as a placeholder.
+# Sign-in offers email/password and Google.
 #
 # Client id and secret come from the repo-root .env (gitignored). See .env.example.
 # Authorized redirect URI for this local API: http://127.0.0.1:54321/auth/v1/callback
@@ -387,8 +387,12 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
+# Vector tails container logs through the Docker socket. This machine runs
+# Colima with sshfs mounts, and sshfs cannot pass that socket into the
+# container. Vector then exits, the health check fails, and `supabase start`
+# stops the whole stack. Studio log search is the only feature this disables.
 [analytics]
-enabled = true
+enabled = false
 port = 54327
 # Configure one of the supported backends: `postgres`, `bigquery`.
 backend = "postgres"

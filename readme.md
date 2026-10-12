@@ -33,7 +33,7 @@ supabase stop
 ```
 
 - Studio (DB UI):  <http://127.0.0.1:54323/project/default>
-- Mailpit (auth emails for magic link):  <http://127.0.0.1:54324>
+- Mailpit (password recovery and signup mail):  <http://127.0.0.1:54324>
 - API URL:        <http://127.0.0.1:54321>
 
 Reset DB (re-applies all migrations + seed):
@@ -45,7 +45,7 @@ supabase db reset
 
 The default role for any new user is `student`. To grant `admin`:
 
-1. Sign in at <http://localhost:4200/sign-in> with email and password. Magic link still works through Mailpit. Google works after the setup below. Local demo accounts from the schedule migration: `instructor.demo@pole.local` and `client.demo@pole.local`, password `demo-local-only`.
+1. Sign in at <http://localhost:4200/sign-in> with email and password, or with Google after the setup below. Password recovery is at <http://localhost:4200/forgot-password> (Mailpit). Profile and password settings are at <http://localhost:4200/app/profile>. Local demo accounts from the schedule migration: `instructor.demo@pole.local` and `client.demo@pole.local`, password `demo-local-only`.
 2. Find your user id in Supabase Studio → `auth.users`.
 3. Run in SQL Editor (or via `supabase/snippets/Set admin role.sql`):
    ```sql
@@ -66,7 +66,7 @@ The default role for any new user is `student`. To grant `admin`:
 5. Copy the client id and secret into a gitignored `.env` at the repo root (names are in `.env.example`).
 6. In `supabase/config.toml`, set `[auth.external.google] enabled = true`.
 7. Restart the local stack so Auth reloads the provider: `supabase stop && supabase start`.
-8. On the hosted project, open **Authentication → Sign In / Providers → Google**, paste the same client id and secret, and add the app origin (and `/auth/callback`) under **URL Configuration**. Instagram is not a Supabase Auth provider.
+8. On the hosted project, open **Authentication → Sign In / Providers → Google**, paste the same client id and secret, and add the app origin (and `/auth/callback`) under **URL Configuration**. The app offers email/password and Google only.
 
 Scopes Google should allow: `openid`, `userinfo.email`, and `userinfo.profile`.
 
@@ -107,7 +107,7 @@ apps/
 libs/
   core/
     supabase/               # @org/supabase  — DI tokens + provideSupabase
-    auth/                   # @org/auth      — AuthApi, AuthStore, guards, sign-in (password, Google, magic link)
+    auth/                   # @org/auth      — AuthApi, AuthStore, guards, sign-in (password, Google), recovery, profile
     data/                   # @org/data      — domain models, Catalog/Attempts/Media/Settings APIs, BrandingService
   features/
     shell/                  # @org/shell     — AppShellPage, ToastService, StateBlockComponent
@@ -145,7 +145,7 @@ The app is shipped as a static SPA. Per-studio configuration is **build-time**, 
    npx nx build app
    ```
 3. Deploy `dist/apps/app/` to any static host (Netlify, Vercel, Cloudflare Pages, S3+CloudFront). SPA fallback to `index.html` must be enabled (Angular routing is client-side).
-4. In the Supabase dashboard add the production origin to **Authentication → URL Configuration → Site URL** and **Additional Redirect URLs** (magic link and Google both return to `${origin}/auth/callback`). Enable the Google provider there if the studio should offer it. Instagram is not a Supabase Auth provider.
+4. In the Supabase dashboard add the production origin to **Authentication → URL Configuration → Site URL** and **Additional Redirect URLs** (Google and password recovery both return to `${origin}/auth/callback`). Enable the Google provider there if the studio should offer it. Paste the local recovery template (`token_hash`, `type=recovery`) into the hosted Recovery template. Leave the Email provider enabled.
 5. Apply the migrations against the production project:
    ```bash
    supabase link --project-ref <ref>
@@ -166,7 +166,7 @@ npx nx run-many -t lint test build
 
 ## Troubleshooting
 
-- **Magic link does nothing** — ensure Supabase is running and check Mailpit. The link must redirect to `/auth/callback` on the same origin you signed in from, and that origin must be allow-listed in Supabase Auth settings (production only).
-- **`supabase start` fails on Docker** — `docker ps` to ensure Docker Desktop is up; then `supabase stop --no-backup` followed by `supabase start`.
+- **Password recovery mail does not arrive** — ensure Supabase is running and check Mailpit. The local recovery template must point at `/auth/callback` with `token_hash` and `type=recovery`. Restart the local stack after changing `config.toml`. On the hosted project, the same template and redirect URL have to be set in the dashboard; this repo does not change them.
+- **`supabase start` fails because `supabase_vector_*` is unhealthy** — local analytics is disabled in `supabase/config.toml`. Vector needs the Docker socket, and Colima's sshfs mount cannot provide it, so the CLI aborts the whole stack. Leave `[analytics] enabled = false` on this machine.
 - **Reset DB does not pick up new migration** — confirm the file is named with the next sortable timestamp prefix (e.g. `2026XXYY...`).
 - **Image in attempt timeline shows broken** — signed URLs expire after 1h; re-open the element page to mint fresh ones.

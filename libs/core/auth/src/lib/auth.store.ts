@@ -3,11 +3,12 @@ import {
   AuthApi,
   type AuthSession,
   type AuthUser,
-  type EmailOtpType,
   type StudioOAuthProvider,
 } from './auth-api';
 import { toAuthError } from './auth-errors';
+import { toEmailOtpType } from './email-otp';
 import { ProfilesApi, type UserRole } from './profiles.api';
+import { signUpOutcome } from './sign-up-outcome';
 import { resolveStudioAccess } from './studio-access';
 
 export type StudioAccessState = 'pending' | 'allowed' | 'restricted' | 'error';
@@ -19,22 +20,6 @@ interface AuthState {
   studioAccess: StudioAccessState;
   loading: boolean;
   error: string | null;
-}
-
-const EMAIL_OTP_TYPES: readonly EmailOtpType[] = [
-  'magiclink',
-  'email',
-  'signup',
-  'invite',
-  'recovery',
-  'email_change',
-];
-
-function toEmailOtpType(value: string | null): EmailOtpType {
-  if (value && EMAIL_OTP_TYPES.includes(value as EmailOtpType)) {
-    return value as EmailOtpType;
-  }
-  return 'magiclink';
 }
 
 function callbackUrl(): string {
@@ -146,21 +131,33 @@ export class AuthStore {
     this.state.update((s) => ({ ...s, error: null }));
   }
 
-  async completeMagicLink(input: {
+  /**
+   * Finishes an OAuth or email-link return.
+   * A `code` is exchanged only when init did not already create a session.
+   * A `token_hash` is always verified, including password recovery.
+   */
+  async completeAuthCallback(input: {
     code: string | null;
     tokenHash: string | null;
     otpType: string | null;
   }): Promise<void> {
-    if (this.state().session) return;
+    if (input.otpType === 'magiclink') {
+      this.state.update((s) => ({
+        ...s,
+        loading: false,
+        error: toAuthError(new Error('Magic link sign-in is disabled')),
+      }));
+      return;
+    }
     if (!input.tokenHash && !input.code) return;
+    if (!input.tokenHash && this.state().session) return;
 
     this.state.update((s) => ({ ...s, loading: true, error: null }));
     try {
       if (input.tokenHash) {
-        await this.auth.verifyEmailOtp({
-          tokenHash: input.tokenHash,
-          type: toEmailOtpType(input.otpType),
-        });
+        const type = toEmailOtpType(input.otpType);
+        if (!type) throw new Error('Unsupported email link type');
+        await this.auth.verifyEmailOtp({ tokenHash: input.tokenHash, type });
       } else if (input.code) {
         await this.auth.exchangeCodeForSession(input.code);
       }
@@ -168,7 +165,7 @@ export class AuthStore {
       await this.adoptSession();
     } catch (err: unknown) {
       const session = await this.auth.getSession().catch(() => null);
-      if (session?.user) {
+      if (session?.user && !input.tokenHash) {
         await this.adoptSession();
         return;
       }
@@ -194,7 +191,11 @@ export class AuthStore {
     }
   }
 
-  /** Returns true when a session exists. False means the address still needs confirmation. */
+  /**
+   * Returns true when a session exists.
+   * False with no error means the address still needs confirmation.
+   * False with an error means the attempt failed, including an address that already exists.
+   */
   async signUpWithPassword(input: {
     email: string;
     password: string;
@@ -202,13 +203,22 @@ export class AuthStore {
   }): Promise<boolean> {
     this.state.update((s) => ({ ...s, loading: true, error: null }));
     try {
-      const session = await this.auth.signUpWithPassword({
+      const result = await this.auth.signUpWithPassword({
         email: input.email,
         password: input.password,
         name: input.name,
         emailRedirectTo: callbackUrl(),
       });
-      if (!session) {
+      const outcome = signUpOutcome(result.session !== null, result.identitiesCount);
+      if (outcome === 'already-registered') {
+        this.state.update((s) => ({
+          ...s,
+          loading: false,
+          error: toAuthError(new Error('User already registered')),
+        }));
+        return false;
+      }
+      if (outcome === 'confirm-email') {
         this.state.update((s) => ({ ...s, loading: false }));
         return false;
       }
@@ -238,17 +248,36 @@ export class AuthStore {
     }
   }
 
-  async signInMagicLink(email: string): Promise<void> {
+  async requestPasswordReset(email: string): Promise<boolean> {
     this.state.update((s) => ({ ...s, loading: true, error: null }));
     try {
-      await this.auth.signInWithMagicLink({ email, redirectTo: callbackUrl() });
+      await this.auth.resetPasswordForEmail({ email, redirectTo: callbackUrl() });
       this.state.update((s) => ({ ...s, loading: false }));
+      return true;
     } catch (err: unknown) {
       this.state.update((s) => ({
         ...s,
         loading: false,
-        error: toAuthError(err, 'Не вдалось надіслати посилання'),
+        error: toAuthError(err, 'Не вдалось надіслати лист'),
       }));
+      return false;
+    }
+  }
+
+  /** Sets a password on the current Auth user. Does not create a second account. */
+  async updatePassword(password: string): Promise<boolean> {
+    this.state.update((s) => ({ ...s, loading: true, error: null }));
+    try {
+      await this.auth.updatePassword(password);
+      this.state.update((s) => ({ ...s, loading: false }));
+      return true;
+    } catch (err: unknown) {
+      this.state.update((s) => ({
+        ...s,
+        loading: false,
+        error: toAuthError(err, 'Не вдалось зберегти пароль'),
+      }));
+      return false;
     }
   }
 

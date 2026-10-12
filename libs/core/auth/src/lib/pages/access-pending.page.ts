@@ -1,11 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { AuthStore } from '../auth.store';
 import { AuthFrameComponent } from './auth-frame.component';
 
 @Component({
   selector: 'pp-access-pending',
-  imports: [AuthFrameComponent],
+  imports: [AuthFrameComponent, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <pp-auth-frame>
@@ -59,9 +59,15 @@ import { AuthFrameComponent } from './auth-frame.component';
               Увійшли як <span class="font-medium text-neutral-900">{{ address }}</span>
             </p>
           }
+          <a
+            routerLink="/app/profile"
+            class="mt-6 block w-full rounded-lg bg-primary px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
+          >
+            Профіль і пароль
+          </a>
           <button
             type="button"
-            class="mt-6 w-full rounded-lg border border-neutral-300 px-4 py-2.5 text-sm font-medium text-neutral-800 transition hover:bg-neutral-50 disabled:opacity-50"
+            class="mt-3 w-full rounded-lg border border-neutral-300 px-4 py-2.5 text-sm font-medium text-neutral-800 transition hover:bg-neutral-50 disabled:opacity-50"
             [disabled]="busy()"
             (click)="signOut()"
           >

@@ -1,5 +1,5 @@
 import { Route } from '@angular/router';
-import { authRoutes, staffOnlyGuard } from '@org/auth';
+import { ProfilePage, authRoutes, staffOnlyGuard, studioAccessGuard } from '@org/auth';
 
 export const appRoutes: Route[] = [
   ...authRoutes,
@@ -13,24 +13,33 @@ export const appRoutes: Route[] = [
       import('@org/shell').then((m) =>
         m.createShellRoutes([
           {
+            path: 'profile',
+            title: 'Профіль',
+            component: ProfilePage,
+          },
+          {
             path: 'elements',
+            canMatch: [studioAccessGuard],
             loadChildren: () => import('@org/element').then((mod) => mod.elementRoutes),
           },
           {
             path: 'schedule',
+            canMatch: [studioAccessGuard],
             loadChildren: () => import('@org/schedule').then((mod) => mod.scheduleRoutes),
           },
           {
             path: 'journals',
+            canMatch: [studioAccessGuard],
             loadChildren: () => import('@org/students').then((mod) => mod.journalsRoutes),
           },
           {
             path: 'students',
-            canMatch: [staffOnlyGuard],
+            canMatch: [studioAccessGuard, staffOnlyGuard],
             loadChildren: () => import('@org/students').then((mod) => mod.studentsRoutes),
           },
           {
             path: '',
+            canMatch: [studioAccessGuard],
             loadChildren: () => import('@org/dashboard').then((mod) => mod.dashboardRoutes),
           },
         ]),

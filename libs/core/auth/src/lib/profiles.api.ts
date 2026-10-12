@@ -28,6 +28,39 @@ export class ProfilesApi {
     return role === 'admin' || role === 'instructor';
   }
 
+  async getMyProfile(): Promise<StudioProfile | null> {
+    const userId = await this.currentUserId();
+    if (!userId) return null;
+
+    const { data, error } = await this.client
+      .from('profiles')
+      .select('id, name, role, created_at')
+      .eq('id', userId)
+      .maybeSingle<StudioProfile>();
+
+    if (error) throw error;
+    return data ?? null;
+  }
+
+  /** Updates only the signed-in user's visible name. Role is not sent. */
+  async updateMyName(name: string): Promise<string> {
+    const userId = await this.currentUserId();
+    if (!userId) throw new Error('Немає сесії');
+
+    const trimmed = name.trim();
+    const { data, error } = await this.client
+      .from('profiles')
+      .update({ name: trimmed })
+      .eq('id', userId)
+      .select('name')
+      .single<{ name: string | null }>();
+
+    if (error) throw error;
+    const saved = data?.name ?? '';
+    if (saved !== trimmed) throw new Error('Не вдалося зберегти ім’я');
+    return saved;
+  }
+
   async getMyRole(): Promise<UserRole | null> {
     const userId = await this.currentUserId();
     if (!userId) return null;

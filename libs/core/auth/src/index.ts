@@ -8,3 +8,4 @@ export * from './lib/studio-access.guard';
 export * from './lib/admin-only.guard';
 export * from './lib/staff-only.guard';
 export * from './lib/auth.routes';
+export * from './lib/pages/profile.page';

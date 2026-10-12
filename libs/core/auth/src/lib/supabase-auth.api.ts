@@ -5,10 +5,11 @@ import {
   AuthApi,
   type AuthSession,
   type AuthUser,
-  type SignInMagicLinkInput,
+  type ResetPasswordInput,
   type SignInOAuthInput,
   type SignInPasswordInput,
   type SignUpPasswordInput,
+  type SignUpPasswordResult,
   type VerifyEmailOtpInput,
 } from './auth-api';
 
@@ -35,7 +36,7 @@ export class SupabaseAuthApi extends AuthApi {
     return data.session;
   }
 
-  async signUpWithPassword(input: SignUpPasswordInput): Promise<AuthSession | null> {
+  async signUpWithPassword(input: SignUpPasswordInput): Promise<SignUpPasswordResult> {
     const name = input.name?.trim();
     const { data, error } = await this.client.auth.signUp({
       email: input.email,
@@ -46,15 +47,14 @@ export class SupabaseAuthApi extends AuthApi {
       },
     });
     if (error) throw error;
-    return data.session ?? null;
+    const identities = data.user?.identities;
+    return {
+      session: data.session ?? null,
+      identitiesCount: identities ? identities.length : null,
+    };
   }
 
-  async signInWithOAuth({ provider, redirectTo }: SignInOAuthInput): Promise<void> {
-    // GoTrue has no Instagram provider. Keep the button, and fail with a mapped message.
-    if (provider === 'instagram') {
-      throw new Error('Unsupported provider: instagram is not enabled');
-    }
-
+  async signInWithOAuth({ redirectTo }: SignInOAuthInput): Promise<void> {
     const { error } = await this.client.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -70,11 +70,13 @@ export class SupabaseAuthApi extends AuthApi {
     if (error) throw error;
   }
 
-  async signInWithMagicLink({ email, redirectTo }: SignInMagicLinkInput): Promise<void> {
-    const { error } = await this.client.auth.signInWithOtp({
-      email,
-      options: redirectTo ? { emailRedirectTo: redirectTo } : undefined,
-    });
+  async resetPasswordForEmail({ email, redirectTo }: ResetPasswordInput): Promise<void> {
+    const { error } = await this.client.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) throw error;
+  }
+
+  async updatePassword(password: string): Promise<void> {
+    const { error } = await this.client.auth.updateUser({ password });
     if (error) throw error;
   }
 

@@ -9,18 +9,17 @@ import {
   viewChild,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
-import type { StudioOAuthProvider } from '../auth-api';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { destinationAfterAuth, safeInternalPath } from '../auth-redirect';
 import { AuthStore } from '../auth.store';
+import { passwordFormError } from '../password-rules';
 import { AuthFrameComponent } from './auth-frame.component';
 
-type SignInMethod = 'password' | 'link';
 type SignInIntent = 'sign-in' | 'sign-up';
 
 @Component({
   selector: 'pp-sign-in',
-  imports: [FormsModule, AuthFrameComponent],
+  imports: [FormsModule, RouterLink, AuthFrameComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <pp-auth-frame>
@@ -34,7 +33,7 @@ type SignInIntent = 'sign-in' | 'sign-up';
             Вхід до студії
           </h1>
           <p class="mt-1 text-sm text-neutral-600">
-            Пароль, Google або посилання на email. Доступ відкриється після перевірки членства.
+            Пароль або Google. Доступ відкриється після перевірки членства.
           </p>
         </header>
 
@@ -46,39 +45,18 @@ type SignInIntent = 'sign-in' | 'sign-up';
               Повернутись до входу
             </button>
           </div>
-        } @else if (sentTo(); as to) {
-          <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950" role="status">
-            <p class="font-medium">Лист відправлено на {{ to }}.</p>
-            <p class="mt-1">Відкрий посилання в цьому ж вікні — так сесія збережеться.</p>
-            <button type="button" class="mt-3 font-medium underline underline-offset-2" (click)="resetNotices()">
-              Надіслати інше
-            </button>
-          </div>
         } @else {
-          <div class="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              class="inline-flex items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2.5 text-sm font-medium text-neutral-800 shadow-sm transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50"
-              [disabled]="busy()"
-              (click)="onOAuth('google')"
-            >
-              <svg viewBox="0 0 24 24" class="h-4 w-4" aria-hidden="true">
-                <path fill="#EA4335" d="M12 10.2v3.9h5.5c-.2 1.3-1.7 3.8-5.5 3.8A6.4 6.4 0 1 1 12 5.6c1.7 0 2.9.7 3.6 1.4l2.5-2.4C16.7 3.2 14.6 2.2 12 2.2 6.8 2.2 2.6 6.4 2.6 11.6S6.8 21 12 21c6.6 0 8.7-4.6 8.7-7 0-.5-.1-.9-.1-1.2H12z"/>
-              </svg>
-              Google
-            </button>
-            <button
-              type="button"
-              class="inline-flex items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2.5 text-sm font-medium text-neutral-800 shadow-sm transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50"
-              [disabled]="busy()"
-              (click)="onOAuth('instagram')"
-            >
-              <svg viewBox="0 0 24 24" class="h-4 w-4" aria-hidden="true">
-                <path fill="currentColor" d="M7 3h10a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4zm10 2H7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm-5 3.2A3.8 3.8 0 1 1 8.2 12 3.8 3.8 0 0 1 12 8.2zm0 1.6A2.2 2.2 0 1 0 14.2 12 2.2 2.2 0 0 0 12 9.8zM17.2 6.6a1 1 0 1 1-1 1 1 1 0 0 1 1-1z"/>
-              </svg>
-              Instagram
-            </button>
-          </div>
+          <button
+            type="button"
+            class="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2.5 text-sm font-medium text-neutral-800 shadow-sm transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50"
+            [disabled]="busy()"
+            (click)="onGoogle()"
+          >
+            <svg viewBox="0 0 24 24" class="h-4 w-4" aria-hidden="true">
+              <path fill="#EA4335" d="M12 10.2v3.9h5.5c-.2 1.3-1.7 3.8-5.5 3.8A6.4 6.4 0 1 1 12 5.6c1.7 0 2.9.7 3.6 1.4l2.5-2.4C16.7 3.2 14.6 2.2 12 2.2 6.8 2.2 2.6 6.4 2.6 11.6S6.8 21 12 21c6.6 0 8.7-4.6 8.7-7 0-.5-.1-.9-.1-1.2H12z"/>
+            </svg>
+            Google
+          </button>
 
           <div class="my-5 flex items-center gap-3 text-xs uppercase tracking-wide text-neutral-400">
             <span class="h-px flex-1 bg-neutral-200"></span>
@@ -86,152 +64,97 @@ type SignInIntent = 'sign-in' | 'sign-up';
             <span class="h-px flex-1 bg-neutral-200"></span>
           </div>
 
-          <div class="mb-5 grid grid-cols-2 rounded-lg bg-neutral-100 p-1" role="tablist" aria-label="Спосіб входу">
-            <button
-              type="button"
-              role="tab"
-              class="rounded-md px-3 py-2 text-sm font-medium transition"
-              [class.bg-white]="method() === 'password'"
-              [class.text-neutral-900]="method() === 'password'"
-              [class.shadow-sm]="method() === 'password'"
-              [class.text-neutral-500]="method() !== 'password'"
-              [attr.aria-selected]="method() === 'password'"
-              (click)="selectMethod('password')"
-            >
-              Пароль
-            </button>
-            <button
-              type="button"
-              role="tab"
-              class="rounded-md px-3 py-2 text-sm font-medium transition"
-              [class.bg-white]="method() === 'link'"
-              [class.text-neutral-900]="method() === 'link'"
-              [class.shadow-sm]="method() === 'link'"
-              [class.text-neutral-500]="method() !== 'link'"
-              [attr.aria-selected]="method() === 'link'"
-              (click)="selectMethod('link')"
-            >
-              Посилання
-            </button>
-          </div>
-
-          @if (method() === 'password') {
-            <form (ngSubmit)="onPasswordSubmit()" novalidate class="space-y-4">
-              @if (intent() === 'sign-up') {
-                <label class="block">
-                  <span class="block text-sm font-medium text-neutral-800">Ім'я</span>
-                  <input
-                    name="name"
-                    type="text"
-                    autocomplete="name"
-                    maxlength="80"
-                    [disabled]="busy()"
-                    [(ngModel)]="nameValue"
-                    class="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-base text-neutral-900 shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
-                    placeholder="Як до тебе звертатись"
-                  />
-                </label>
-              }
-
+          <form (ngSubmit)="onPasswordSubmit()" novalidate class="space-y-4">
+            @if (intent() === 'sign-up') {
               <label class="block">
-                <span class="block text-sm font-medium text-neutral-800">Email</span>
+                <span class="block text-sm font-medium text-neutral-800">Ім'я</span>
                 <input
-                  #emailInput
-                  name="email"
-                  type="email"
-                  autocomplete="email"
-                  inputmode="email"
-                  spellcheck="false"
-                  required
+                  name="name"
+                  type="text"
+                  autocomplete="name"
+                  maxlength="80"
                   [disabled]="busy()"
-                  [(ngModel)]="emailValue"
+                  [(ngModel)]="nameValue"
                   class="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-base text-neutral-900 shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
-                  placeholder="you@example.com"
+                  placeholder="Як до тебе звертатись"
                 />
               </label>
+            }
 
-              <label class="block">
-                <span class="block text-sm font-medium text-neutral-800">Пароль</span>
-                <input
-                  name="password"
-                  type="password"
-                  [attr.autocomplete]="intent() === 'sign-up' ? 'new-password' : 'current-password'"
-                  required
-                  minlength="6"
-                  [disabled]="busy()"
-                  [(ngModel)]="passwordValue"
-                  class="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-base text-neutral-900 shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
-                  placeholder="Щонайменше 6 символів"
-                />
-              </label>
-
-              @if (intent() === 'sign-up') {
-                <label class="block">
-                  <span class="block text-sm font-medium text-neutral-800">Ще раз пароль</span>
-                  <input
-                    name="confirm"
-                    type="password"
-                    autocomplete="new-password"
-                    required
-                    [disabled]="busy()"
-                    [(ngModel)]="confirmValue"
-                    class="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-base text-neutral-900 shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
-                  />
-                </label>
-              }
-
-              @if (alertText(); as err) {
-                <p class="text-sm text-rose-600" role="alert">{{ err }}</p>
-              }
-
-              <button
-                type="submit"
+            <label class="block">
+              <span class="block text-sm font-medium text-neutral-800">Email</span>
+              <input
+                #emailInput
+                name="email"
+                type="email"
+                autocomplete="email"
+                inputmode="email"
+                spellcheck="false"
+                required
                 [disabled]="busy()"
-                class="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {{ submitLabel() }}
-              </button>
-            </form>
+                [(ngModel)]="emailValue"
+                class="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-base text-neutral-900 shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
+                placeholder="you@example.com"
+              />
+            </label>
+
+            <label class="block">
+              <span class="block text-sm font-medium text-neutral-800">Пароль</span>
+              <input
+                name="password"
+                type="password"
+                [attr.autocomplete]="intent() === 'sign-up' ? 'new-password' : 'current-password'"
+                required
+                minlength="6"
+                [disabled]="busy()"
+                [(ngModel)]="passwordValue"
+                class="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-base text-neutral-900 shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
+                placeholder="Щонайменше 6 символів"
+              />
+            </label>
+
+            @if (intent() === 'sign-up') {
+              <label class="block">
+                <span class="block text-sm font-medium text-neutral-800">Ще раз пароль</span>
+                <input
+                  name="confirm"
+                  type="password"
+                  autocomplete="new-password"
+                  required
+                  [disabled]="busy()"
+                  [(ngModel)]="confirmValue"
+                  class="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-base text-neutral-900 shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
+                />
+              </label>
+            }
+
+            @if (alertText(); as err) {
+              <p class="text-sm text-rose-600" role="alert">{{ err }}</p>
+            }
 
             <button
+              type="submit"
+              [disabled]="busy()"
+              class="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {{ submitLabel() }}
+            </button>
+          </form>
+
+          <div class="mt-4 flex flex-col gap-2 text-sm">
+            @if (intent() === 'sign-in') {
+              <a routerLink="/forgot-password" class="font-medium text-primary underline-offset-2 hover:underline">
+                Забули пароль?
+              </a>
+            }
+            <button
               type="button"
-              class="mt-4 text-sm font-medium text-primary underline-offset-2 hover:underline"
+              class="self-start font-medium text-primary underline-offset-2 hover:underline"
               (click)="toggleIntent()"
             >
               {{ intent() === 'sign-in' ? 'Немає акаунта? Створити' : 'Вже є акаунт? Увійти' }}
             </button>
-          } @else {
-            <form (ngSubmit)="onMagicSubmit()" novalidate class="space-y-4">
-              <label class="block">
-                <span class="block text-sm font-medium text-neutral-800">Email</span>
-                <input
-                  #emailInput
-                  name="magicEmail"
-                  type="email"
-                  autocomplete="email"
-                  inputmode="email"
-                  spellcheck="false"
-                  required
-                  [disabled]="busy()"
-                  [(ngModel)]="emailValue"
-                  class="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-base text-neutral-900 shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
-                  placeholder="you@example.com"
-                />
-              </label>
-
-              @if (alertText(); as err) {
-                <p class="text-sm text-rose-600" role="alert">{{ err }}</p>
-              }
-
-              <button
-                type="submit"
-                [disabled]="busy()"
-                class="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {{ busy() ? 'Відправляємо…' : 'Надіслати посилання' }}
-              </button>
-            </form>
-          }
+          </div>
         }
 
         <p class="mt-6 text-xs leading-relaxed text-neutral-500">
@@ -251,9 +174,7 @@ export class SignInPage {
   protected confirmValue = '';
   protected nameValue = '';
 
-  protected readonly method = signal<SignInMethod>('password');
   protected readonly intent = signal<SignInIntent>('sign-in');
-  protected readonly sentTo = signal<string | null>(null);
   protected readonly confirmationEmail = signal<string | null>(null);
   protected readonly formError = signal<string | null>(null);
   protected readonly busy = computed(() => this.auth.loading());
@@ -275,17 +196,10 @@ export class SignInPage {
     });
 
     effect(() => {
-      if (this.sentTo() || this.confirmationEmail()) return;
-      this.method();
+      if (this.confirmationEmail()) return;
       const input = this.emailInput()?.nativeElement;
       if (input && document.activeElement !== input) input.focus();
     });
-  }
-
-  protected selectMethod(method: SignInMethod): void {
-    this.method.set(method);
-    this.formError.set(null);
-    this.auth.clearError();
   }
 
   protected toggleIntent(): void {
@@ -295,7 +209,6 @@ export class SignInPage {
   }
 
   protected resetNotices(): void {
-    this.sentTo.set(null);
     this.confirmationEmail.set(null);
     this.formError.set(null);
     this.auth.clearError();
@@ -309,12 +222,9 @@ export class SignInPage {
       this.formError.set('Введи коректний email.');
       return;
     }
-    if (password.length < 6) {
-      this.formError.set('Пароль має містити щонайменше 6 символів.');
-      return;
-    }
-    if (this.intent() === 'sign-up' && password !== this.confirmValue) {
-      this.formError.set('Паролі не збігаються.');
+    const passwordError = passwordFormError(password, this.intent() === 'sign-up' ? this.confirmValue : null);
+    if (passwordError) {
+      this.formError.set(passwordError);
       return;
     }
 
@@ -332,23 +242,10 @@ export class SignInPage {
     await this.auth.signInWithPassword(email, password);
   }
 
-  protected async onMagicSubmit(): Promise<void> {
-    this.formError.set(null);
-    const email = this.emailValue.trim();
-    if (!this.emailOk(email)) {
-      this.formError.set('Введи коректний email.');
-      return;
-    }
-
-    this.rememberRedirect();
-    await this.auth.signInMagicLink(email);
-    if (!this.auth.error()) this.sentTo.set(email);
-  }
-
-  protected async onOAuth(provider: StudioOAuthProvider): Promise<void> {
+  protected async onGoogle(): Promise<void> {
     this.formError.set(null);
     this.rememberRedirect();
-    await this.auth.signInWithOAuth(provider);
+    await this.auth.signInWithOAuth('google');
   }
 
   private emailOk(email: string): boolean {

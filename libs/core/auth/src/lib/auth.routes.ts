@@ -16,4 +16,9 @@ export const authRoutes: Routes = [
     title: 'Членство',
     loadComponent: () => import('./pages/access-pending.page').then((m) => m.AccessPendingPage),
   },
+  {
+    path: 'forgot-password',
+    title: 'Відновлення пароля',
+    loadComponent: () => import('./pages/forgot-password.page').then((m) => m.ForgotPasswordPage),
+  },
 ];

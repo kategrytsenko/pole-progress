@@ -29,7 +29,10 @@ interface ShellNavItem {
     <div class="min-h-screen bg-neutral-50 text-neutral-900">
       <header class="sticky top-0 z-30 border-b border-neutral-200 bg-white/90 backdrop-blur">
         <div class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
-          <a routerLink="/app" class="flex items-center gap-2 text-base font-semibold tracking-tight">
+          <a
+            [routerLink]="auth.hasStudioAccess() ? '/app' : '/app/profile'"
+            class="flex items-center gap-2 text-base font-semibold tracking-tight"
+          >
             @if (branding.logoUrl(); as logo) {
               <img
                 [src]="logo"
@@ -72,6 +75,12 @@ interface ShellNavItem {
                 <span class="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600">Клієнт</span>
               }
             }
+            <a
+              routerLink="/app/profile"
+              class="text-sm font-medium text-neutral-700 underline-offset-2 hover:text-primary hover:underline"
+            >
+              Профіль
+            </a>
             <span class="hidden text-xs text-neutral-500 sm:block">{{ auth.user()?.email }}</span>
             <button
               type="button"
@@ -83,6 +92,7 @@ interface ShellNavItem {
           </div>
         </div>
 
+        @if (navItems().length > 0) {
         <nav aria-label="Main" class="mx-auto flex max-w-6xl gap-2 overflow-x-auto px-4 pb-3 sm:hidden">
           @for (item of navItems(); track item.link) {
             @if (item.dividerBefore) {
@@ -97,6 +107,7 @@ interface ShellNavItem {
             >{{ item.label }}</a>
           }
         </nav>
+        }
       </header>
 
       <main id="main-content" class="mx-auto max-w-6xl px-4 py-6">
@@ -113,6 +124,7 @@ export class AppShellPage {
   private readonly router = inject(Router);
 
   protected readonly navItems = computed<ShellNavItem[]>(() => {
+    if (!this.auth.hasStudioAccess()) return [];
     const items: ShellNavItem[] = [
       { link: '/app', label: 'Щоденник', exact: true, emphasis: 'primary' },
       {
