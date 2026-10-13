@@ -7,6 +7,12 @@ import {
 } from '@org/auth';
 import { StateBlockComponent, ToastService } from '@org/shell';
 import { ScheduleStore } from '../schedule.store';
+import {
+  SCHEDULE_DAY_EMPTY,
+  SCHEDULE_FILTER_EMPTY,
+  SCHEDULE_SEAT_NOTE,
+  type SessionAvailability,
+} from '../schedule-view';
 
 const BOOKING_ERRORS: readonly { code: string; message: string }[] = [
   { code: 'class_full', message: 'На це заняття вже немає місць.' },
@@ -18,6 +24,12 @@ const BOOKING_ERRORS: readonly { code: string; message: string }[] = [
   { code: 'not_authenticated', message: 'Увійдіть, щоб змінити запис.' },
   { code: 'profile_incomplete', message: PROFILE_NAME_PHONE_REQUIREMENT },
 ];
+
+function selectValue(event: Event): string | null {
+  const target = event.target;
+  if (!(target instanceof HTMLSelectElement)) return null;
+  return target.value.length > 0 ? target.value : null;
+}
 
 function bookingErrorMessage(err: unknown): string {
   const text = errorText(err);
@@ -42,6 +54,7 @@ function errorText(err: unknown): string {
       <header class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 class="text-2xl font-semibold tracking-tight">Розклад</h1>
+          <p class="mt-1 text-sm text-neutral-600">{{ seatNote }}</p>
           <p class="mt-1 text-sm text-neutral-600">
             Скасування раніше ніж за {{ store.cutoffHours() }} год до початку повертає заняття на абонемент.
           </p>
@@ -116,25 +129,66 @@ function errorText(err: unknown): string {
         </button>
       </div>
 
-      <div role="tablist" aria-label="Тип заняття" class="flex flex-wrap gap-2">
-        <button
-          role="tab"
-          type="button"
-          [attr.aria-selected]="store.typeId() === null"
-          (click)="onTypeChange(null)"
-          [class]="filterPillClass(store.typeId() === null)"
-        >
-          Усі
-        </button>
-        @for (type of store.types(); track type.id) {
+      <div class="space-y-3">
+        <div role="tablist" aria-label="Тип заняття" class="flex flex-wrap gap-2">
           <button
             role="tab"
             type="button"
-            [attr.aria-selected]="store.typeId() === type.id"
-            (click)="onTypeChange(type.id)"
-            [class]="filterPillClass(store.typeId() === type.id)"
+            [attr.aria-selected]="store.typeId() === null"
+            (click)="onTypeChange(null)"
+            [class]="filterPillClass(store.typeId() === null)"
           >
-            {{ type.name }}
+            Усі
+          </button>
+          @for (type of store.types(); track type.id) {
+            <button
+              role="tab"
+              type="button"
+              [attr.aria-selected]="store.typeId() === type.id"
+              (click)="onTypeChange(type.id)"
+              [class]="filterPillClass(store.typeId() === type.id)"
+            >
+              {{ type.name }}
+            </button>
+          }
+        </div>
+
+        <div class="grid gap-3 sm:grid-cols-2">
+          <label class="flex flex-col gap-1 text-sm">
+            <span class="font-medium text-neutral-700">Інструктор</span>
+            <select
+              [value]="store.instructorId() ?? ''"
+              (change)="onInstructorChange($event)"
+              class="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              <option value="">Усі</option>
+              @for (instructor of store.instructors(); track instructor.id) {
+                <option [value]="instructor.id">{{ instructor.name }}</option>
+              }
+            </select>
+          </label>
+          <label class="flex flex-col gap-1 text-sm">
+            <span class="font-medium text-neutral-700">Час початку</span>
+            <select
+              [value]="store.startTime() ?? ''"
+              (change)="onStartTimeChange($event)"
+              class="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              <option value="">Усі</option>
+              @for (time of store.startTimes(); track time) {
+                <option [value]="time">{{ time }}</option>
+              }
+            </select>
+          </label>
+        </div>
+
+        @if (store.filtersActive()) {
+          <button
+            type="button"
+            (click)="onClearFilters()"
+            class="rounded-md px-3 py-1.5 text-sm font-medium text-primary transition hover:bg-primary/10 focus:outline-none focus:ring-2 focus:ring-primary/30"
+          >
+            Скинути фільтри
           </button>
         }
       </div>
@@ -153,8 +207,11 @@ function errorText(err: unknown): string {
           </button>
         </div>
       } @else {
+        @if (store.filtersActive() && store.visibleDays().length === 0) {
+          <pp-state-block mode="empty" [message]="filterEmpty" />
+        } @else {
         <ol class="space-y-4">
-          @for (day of store.days(); track day.key) {
+          @for (day of store.visibleDays(); track day.key) {
             <li
               class="rounded-xl border bg-white p-4 shadow-sm"
               [class.border-primary]="day.isToday"
@@ -168,30 +225,51 @@ function errorText(err: unknown): string {
               </h2>
 
               @if (day.sessions.length === 0) {
-                <p class="mt-2 text-sm text-neutral-500">Немає занять</p>
+                <p class="mt-2 text-sm text-neutral-500">{{ dayEmpty }}</p>
               } @else {
                 <ul class="mt-3 grid gap-3 lg:grid-cols-2">
                   @for (session of day.sessions; track session.id) {
                     <li
                       class="flex flex-col gap-3 rounded-lg border border-neutral-200 p-3"
-                      [class.opacity-60]="session.cancelled"
+                      [class.bg-neutral-50]="session.availability === 'cancelled'"
+                      [class.opacity-70]="session.availability === 'cancelled'"
                     >
                       <div class="flex items-start justify-between gap-3">
                         <div>
                           <p class="text-sm font-semibold text-neutral-900">{{ session.typeName }}</p>
-                          <p class="mt-0.5 text-sm text-neutral-600">{{ session.timeLabel }}</p>
                           <p class="mt-0.5 text-xs text-neutral-500">{{ session.instructorName }}</p>
                         </div>
-                        <p
-                          class="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium"
-                          [class.bg-red-50]="session.full && !session.cancelled"
-                          [class.text-red-700]="session.full && !session.cancelled"
-                          [class.bg-neutral-100]="!session.full || session.cancelled"
-                          [class.text-neutral-600]="!session.full || session.cancelled"
-                        >
-                          {{ session.capacityLabel }}
+                        <p [class]="availabilityClass(session.availability)">
+                          {{ session.availabilityLabel }}
                         </p>
                       </div>
+
+                      <dl class="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                        <div>
+                          <dt class="text-neutral-500">Дата</dt>
+                          <dd class="font-medium text-neutral-900">{{ session.dateLabel }}</dd>
+                        </div>
+                        <div>
+                          <dt class="text-neutral-500">Початок</dt>
+                          <dd class="font-medium text-neutral-900">{{ session.startLabel }}</dd>
+                        </div>
+                        <div>
+                          <dt class="text-neutral-500">Час</dt>
+                          <dd class="font-medium text-neutral-900">{{ session.timeLabel }}</dd>
+                        </div>
+                        <div>
+                          <dt class="text-neutral-500">Місткість</dt>
+                          <dd class="font-medium text-neutral-900">{{ session.capacity }}</dd>
+                        </div>
+                        <div>
+                          <dt class="text-neutral-500">Активні записи</dt>
+                          <dd class="font-medium text-neutral-900">{{ session.bookedCount }}</dd>
+                        </div>
+                        <div>
+                          <dt class="text-neutral-500">Залишилось</dt>
+                          <dd class="font-medium text-neutral-900">{{ session.remainingSeats }}</dd>
+                        </div>
+                      </dl>
 
                       <div class="flex flex-wrap items-center gap-2">
                         @if (session.booked) {
@@ -230,6 +308,7 @@ function errorText(err: unknown): string {
             </li>
           }
         </ol>
+        }
       }
     </section>
   `,
@@ -238,6 +317,9 @@ export class SchedulePage implements OnInit {
   protected readonly store = inject(ScheduleStore);
   protected readonly auth = inject(AuthStore);
   protected readonly profileRequirement = PROFILE_NAME_PHONE_REQUIREMENT;
+  protected readonly seatNote = SCHEDULE_SEAT_NOTE;
+  protected readonly dayEmpty = SCHEDULE_DAY_EMPTY;
+  protected readonly filterEmpty = SCHEDULE_FILTER_EMPTY;
   private readonly toast = inject(ToastService);
   private readonly router = inject(Router);
 
@@ -255,7 +337,19 @@ export class SchedulePage implements OnInit {
   }
 
   protected onTypeChange(typeId: string | null): void {
-    void this.store.setType(typeId);
+    this.store.setType(typeId);
+  }
+
+  protected onInstructorChange(event: Event): void {
+    this.store.setInstructor(selectValue(event));
+  }
+
+  protected onStartTimeChange(event: Event): void {
+    this.store.setStartTime(selectValue(event));
+  }
+
+  protected onClearFilters(): void {
+    this.store.clearFilters();
   }
 
   protected onRetry(): void {
@@ -291,6 +385,13 @@ export class SchedulePage implements OnInit {
     } catch (err) {
       this.toast.error(bookingErrorMessage(err));
     }
+  }
+
+  protected availabilityClass(availability: SessionAvailability): string {
+    const base = 'shrink-0 rounded-full px-2 py-0.5 text-xs font-medium';
+    if (availability === 'available') return `${base} bg-emerald-50 text-emerald-800`;
+    if (availability === 'full') return `${base} bg-red-50 text-red-700`;
+    return `${base} bg-neutral-200 text-neutral-700`;
   }
 
   protected filterPillClass(active: boolean): string {

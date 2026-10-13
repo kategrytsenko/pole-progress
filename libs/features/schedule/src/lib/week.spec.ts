@@ -1,4 +1,4 @@
-import { addWeeks, kyivDateKey, startOfWeek, weekDays, weekRangeIso } from './week';
+import { addWeeks, kyivDateKey, kyivTimeKey, startOfWeek, weekDays, weekRangeIso } from './week';
 
 describe('studio week', () => {
   it('starts the week on Monday in Europe/Kyiv', () => {
@@ -25,5 +25,10 @@ describe('studio week', () => {
     ]);
     expect(range.from).toBe(start.toISOString());
     expect(range.to).toBe(addWeeks(start, 1).toISOString());
+  });
+
+  it('reads the start time in Europe/Kyiv', () => {
+    expect(kyivTimeKey('2026-10-13T15:00:00.000Z')).toBe('18:00');
+    expect(kyivTimeKey('2026-11-02T16:00:00.000Z')).toBe('18:00');
   });
 });

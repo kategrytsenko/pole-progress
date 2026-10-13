@@ -11,18 +11,17 @@ import {
   ScheduleApi,
   SettingsApi,
 } from '@org/data';
-import { sessionBookingState } from './booking-access';
 import {
-  addWeeks,
-  formatKyivDate,
-  formatKyivDay,
-  formatKyivTime,
-  formatWeekSpan,
-  kyivDateKey,
-  startOfWeek,
-  weekDays,
-  weekRangeIso,
-} from './week';
+  buildScheduleDays,
+  instructorFilterOptions,
+  scheduleFiltersActive,
+  startTimeFilterOptions,
+  visibleScheduleDays,
+  type ScheduleDayView,
+  type ScheduleFilters,
+  type ScheduleSessionSource,
+} from './schedule-view';
+import { addWeeks, formatKyivDate, formatWeekSpan, startOfWeek, weekRangeIso } from './week';
 
 export interface PassBalanceView {
   readonly id: string;
@@ -32,30 +31,12 @@ export interface PassBalanceView {
   readonly nextToUse: boolean;
 }
 
-export interface ScheduleSessionView {
-  readonly id: string;
-  readonly typeName: string;
-  readonly instructorName: string;
-  readonly timeLabel: string;
-  readonly capacityLabel: string;
-  readonly cancelled: boolean;
-  readonly booked: boolean;
-  readonly canBook: boolean;
-  readonly canCancel: boolean;
-  readonly hint: string | null;
-  readonly full: boolean;
-}
-
-export interface ScheduleDayView {
-  readonly key: string;
-  readonly label: string;
-  readonly isToday: boolean;
-  readonly sessions: readonly ScheduleSessionView[];
-}
-
 interface ScheduleState {
   weekStart: Date;
   typeId: string | null;
+  instructorId: string | null;
+  instructorLabel: string | null;
+  startTime: string | null;
   types: ClassType[];
   sessions: ClassSessionCard[];
   bookings: Booking[];
@@ -92,6 +73,9 @@ export class ScheduleStore {
   private readonly state = signal<ScheduleState>({
     weekStart: startOfWeek(new Date()),
     typeId: null,
+    instructorId: null,
+    instructorLabel: null,
+    startTime: null,
     types: [],
     sessions: [],
     bookings: [],
@@ -108,6 +92,8 @@ export class ScheduleStore {
   readonly error = computed(() => this.state().error);
   readonly cutoffHours = computed(() => this.state().cutoffHours);
   readonly typeId = computed(() => this.state().typeId);
+  readonly instructorId = computed(() => this.state().instructorId);
+  readonly startTime = computed(() => this.state().startTime);
   readonly pendingSessionId = computed(() => this.state().pendingSessionId);
   readonly weekLabel = computed(() => formatWeekSpan(this.state().weekStart));
   readonly types = computed(() => this.state().types.filter((type) => type.active));
@@ -133,63 +119,45 @@ export class ScheduleStore {
     );
   }
 
-  readonly days = computed<ScheduleDayView[]>(() => {
-    const { weekStart, sessions, bookings, passes, profileComplete } = this.state();
-    const now = Date.now();
-    const todayKey = kyivDateKey(new Date(now));
-    const hasPass = passes.length > 0;
-    const bookedBySession = new Map(
-      bookings.filter((row) => row.status === 'booked').map((row) => [row.session_id, row]),
-    );
-    const byDay = new Map<string, ClassSessionCard[]>();
-    for (const session of sessions) {
-      const key = kyivDateKey(new Date(session.starts_at));
-      const list = byDay.get(key);
-      if (list) list.push(session);
-      else byDay.set(key, [session]);
-    }
+  private readonly sources = computed(() => this.state().sessions.map(toSource));
 
-    return weekDays(weekStart).map((day) => {
-      const key = kyivDateKey(day);
-      const rows = byDay.get(key) ?? [];
-      return {
-        key,
-        label: formatKyivDay(day),
-        isToday: key === todayKey,
-        sessions: rows.map((session) => {
-          const booked = bookedBySession.has(session.id);
-          const booking = sessionBookingState({
-            status: session.status,
-            startsAt: session.starts_at,
-            bookedCount: session.booked_count,
-            capacity: session.capacity,
-            booked,
-            hasPass,
-            profileComplete,
-            now,
-          });
-          return {
-            id: session.id,
-            typeName: session.type_name,
-            instructorName: session.instructor_name?.trim() || 'Інструктор',
-            timeLabel: `${formatKyivTime(session.starts_at)}–${formatKyivTime(session.ends_at)}`,
-            capacityLabel: `${session.booked_count} / ${session.capacity}`,
-            cancelled: session.status === 'cancelled',
-            booked,
-            canBook: booking.canBook,
-            canCancel: booking.canCancel,
-            hint: booking.hint,
-            full: booking.full,
-          };
-        }),
-      };
+  readonly filters = computed<ScheduleFilters>(() => {
+    const { typeId, instructorId, startTime } = this.state();
+    return { typeId, instructorId, startTime };
+  });
+
+  readonly filtersActive = computed(() => scheduleFiltersActive(this.filters()));
+
+  readonly instructors = computed(() => {
+    const { instructorId, instructorLabel } = this.state();
+    const selected =
+      instructorId && instructorLabel ? { id: instructorId, name: instructorLabel } : null;
+    return instructorFilterOptions(this.sources(), selected);
+  });
+
+  readonly startTimes = computed(() => startTimeFilterOptions(this.sources(), this.state().startTime));
+
+  readonly days = computed<ScheduleDayView[]>(() => {
+    const { weekStart, bookings, passes, profileComplete } = this.state();
+    const bookedSessionIds = new Set(
+      bookings.filter((row) => row.status === 'booked').map((row) => row.session_id),
+    );
+    return buildScheduleDays({
+      weekStart,
+      sessions: this.sources(),
+      filters: this.filters(),
+      bookedSessionIds,
+      hasPass: passes.length > 0,
+      profileComplete,
+      now: Date.now(),
     });
   });
+
+  readonly visibleDays = computed(() => visibleScheduleDays(this.days(), this.filtersActive()));
 
   async load(): Promise<void> {
     const id = ++this.generation;
     const weekStart = this.state().weekStart;
-    const typeId = this.state().typeId;
     this.state.update((current) => ({ ...current, loading: true, error: null }));
 
     try {
@@ -197,7 +165,7 @@ export class ScheduleStore {
         this.schedule.listClassTypes(),
         this.passesApi.listProducts(),
         this.settings.getAppSettings(),
-        this.fetchRange(weekStart, typeId),
+        this.fetchRange(weekStart),
       ]);
       if (id !== this.generation) return;
       this.state.update((current) => ({
@@ -232,10 +200,36 @@ export class ScheduleStore {
     await this.load();
   }
 
-  async setType(typeId: string | null): Promise<void> {
-    if (this.state().typeId === typeId) return;
-    this.state.update((current) => ({ ...current, typeId }));
-    await this.load();
+  setType(typeId: string | null): void {
+    this.state.update((current) => (current.typeId === typeId ? current : { ...current, typeId }));
+  }
+
+  setInstructor(instructorId: string | null): void {
+    this.state.update((current) => {
+      if (current.instructorId === instructorId) return current;
+      const selected =
+        current.instructorId && current.instructorLabel
+          ? { id: current.instructorId, name: current.instructorLabel }
+          : null;
+      const known = instructorFilterOptions(this.sources(), selected);
+      const instructorLabel = instructorId
+        ? (known.find((option) => option.id === instructorId)?.name ?? 'Інструктор')
+        : null;
+      return { ...current, instructorId, instructorLabel };
+    });
+  }
+
+  setStartTime(startTime: string | null): void {
+    this.state.update((current) =>
+      current.startTime === startTime ? current : { ...current, startTime },
+    );
+  }
+
+  clearFilters(): void {
+    this.state.update((current) => {
+      if (!scheduleFiltersActive(current)) return current;
+      return { ...current, typeId: null, instructorId: null, instructorLabel: null, startTime: null };
+    });
   }
 
   async book(sessionId: string): Promise<boolean> {
@@ -255,15 +249,13 @@ export class ScheduleStore {
   private async mutate<T>(sessionId: string, action: () => Promise<T>): Promise<T | undefined> {
     if (this.state().pendingSessionId) return undefined;
     const weekStart = this.state().weekStart;
-    const typeId = this.state().typeId;
     this.state.update((current) => ({ ...current, pendingSessionId: sessionId }));
     try {
       const value = await action();
-      const fetched = await this.fetchRange(weekStart, typeId);
+      const fetched = await this.fetchRange(weekStart);
       this.state.update((current) => {
-        const sameView =
-          current.weekStart.getTime() === weekStart.getTime() && current.typeId === typeId;
-        if (!sameView) return { ...current, pendingSessionId: null };
+        const sameWeek = current.weekStart.getTime() === weekStart.getTime();
+        if (!sameWeek) return { ...current, pendingSessionId: null };
         return { ...current, ...fetched, pendingSessionId: null, error: null };
       });
       return value;
@@ -273,12 +265,27 @@ export class ScheduleStore {
     }
   }
 
-  private async fetchRange(weekStart: Date, typeId: string | null): Promise<FetchedRange> {
+  private async fetchRange(weekStart: Date): Promise<FetchedRange> {
     const [sessions, bookings, passes] = await Promise.all([
-      this.schedule.listSessionsInRange(weekRangeIso(weekStart), typeId),
+      this.schedule.listSessionsInRange(weekRangeIso(weekStart)),
       this.bookingsApi.listMine(),
       this.passesApi.listMine(),
     ]);
     return { sessions, bookings, passes };
   }
+}
+
+function toSource(session: ClassSessionCard): ScheduleSessionSource {
+  return {
+    id: session.id,
+    typeId: session.type_id,
+    typeName: session.type_name,
+    instructorId: session.instructor_id,
+    instructorName: session.instructor_name,
+    startsAt: session.starts_at,
+    endsAt: session.ends_at,
+    capacity: session.capacity,
+    bookedCount: session.booked_count,
+    status: session.status,
+  };
 }

@@ -131,6 +131,21 @@ export function formatKyivTime(iso: string): string {
   }).format(new Date(iso));
 }
 
+/** `HH:mm` in Europe/Kyiv. Filter values use this, not the UTC clock. */
+export function kyivTimeKey(iso: string): string {
+  const options: Intl.DateTimeFormatOptions = {
+    timeZone: TIME_ZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  };
+  const date = new Date(iso);
+  let hour = partValue(date, options, 'hour');
+  const minute = partValue(date, options, 'minute');
+  if (hour === '24') hour = '00';
+  return `${hour}:${minute}`;
+}
+
 export function formatKyivDate(iso: string): string {
   return new Intl.DateTimeFormat('uk-UA', {
     timeZone: TIME_ZONE,
