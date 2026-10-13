@@ -1,8 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthStore } from '../auth.store';
+import { PROFILE_INCOMPLETE_NOTICE, safeInternalPath } from '../auth-redirect';
 import { passwordFormError } from '../password-rules';
+import { PROFILE_NAME_PHONE_REQUIREMENT } from '../profile-gate';
 import {
   isProfileComplete,
   PROFILE_NAME_MAX_LENGTH,
@@ -24,6 +26,12 @@ import { ProfilesApi } from '../profiles.api';
           обліковому записі.
         </p>
       </header>
+
+      @if (blockedAction()) {
+        <p class="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950" role="status">
+          Ця дія недоступна, доки профіль не заповнений. {{ profileRequirement }}
+        </p>
+      }
 
       @if (!auth.hasStudioAccess()) {
         <p class="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
@@ -173,8 +181,11 @@ import { ProfilesApi } from '../profiles.api';
 export class ProfilePage {
   protected readonly auth = inject(AuthStore);
   private readonly profiles = inject(ProfilesApi);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   protected readonly nameMaxLength = PROFILE_NAME_MAX_LENGTH;
   protected readonly phoneMaxLength = PROFILE_PHONE_MAX_LENGTH;
+  protected readonly profileRequirement = PROFILE_NAME_PHONE_REQUIREMENT;
 
   protected nameValue = '';
   protected phoneValue = '';
@@ -191,9 +202,14 @@ export class ProfilePage {
   protected readonly passwordError = signal<string | null>(null);
   protected readonly profileSaved = signal(false);
   protected readonly passwordSaved = signal(false);
+  protected readonly blockedAction = signal(false);
+  private readonly returnPath = signal<string | null>(null);
   protected readonly email = computed(() => this.auth.user()?.email ?? null);
 
   constructor() {
+    const params = this.route.snapshot.queryParamMap;
+    this.blockedAction.set(params.get('notice') === PROFILE_INCOMPLETE_NOTICE);
+    this.returnPath.set(safeInternalPath(params.get('redirect')));
     void this.load();
   }
 
@@ -213,8 +229,14 @@ export class ProfilePage {
       const saved = await this.profiles.updateMyProfile(this.nameValue, this.phoneValue);
       this.nameValue = saved.name;
       this.phoneValue = saved.phone;
-      this.complete.set(isProfileComplete(saved.name, saved.phone));
+      const complete = isProfileComplete(saved.name, saved.phone);
+      this.complete.set(complete);
+      this.auth.setProfileComplete(complete);
       this.profileSaved.set(true);
+      const next = this.returnPath();
+      if (complete && next) {
+        await this.router.navigateByUrl(next);
+      }
     } catch {
       this.profileError.set('Не вдалося зберегти профіль.');
     } finally {
@@ -256,7 +278,9 @@ export class ProfilePage {
       }
       this.nameValue = profile.name ?? '';
       this.phoneValue = profile.phone ?? '';
-      this.complete.set(isProfileComplete(profile.name, profile.phone));
+      const complete = isProfileComplete(profile.name, profile.phone);
+      this.complete.set(complete);
+      this.auth.setProfileComplete(complete);
       this.status.set('ready');
     } catch {
       this.status.set('error');

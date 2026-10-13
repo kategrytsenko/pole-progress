@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { AttemptReactionsComponent } from './attempt-reactions.component';
 
 const comment = {
@@ -12,6 +13,12 @@ const comment = {
 };
 
 describe('AttemptReactionsComponent', () => {
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [provideRouter([])],
+    });
+  });
+
   it('shows a pressed like and a neutral comment for a peer', () => {
     const fixture = TestBed.createComponent(AttemptReactionsComponent);
     fixture.componentRef.setInput('attemptId', 'attempt');
@@ -19,6 +26,7 @@ describe('AttemptReactionsComponent', () => {
     fixture.componentRef.setInput('viewerId', 'peer');
     fixture.componentRef.setInput('journalPublic', true);
     fixture.componentRef.setInput('hasStudioAccess', true);
+    fixture.componentRef.setInput('profileComplete', true);
     fixture.componentRef.setInput('likes', { count: 1, likedByMe: true });
     fixture.componentRef.setInput('comments', [comment]);
     fixture.detectChanges();
@@ -41,6 +49,7 @@ describe('AttemptReactionsComponent', () => {
     fixture.componentRef.setInput('viewerId', 'owner');
     fixture.componentRef.setInput('journalPublic', true);
     fixture.componentRef.setInput('hasStudioAccess', true);
+    fixture.componentRef.setInput('profileComplete', true);
     fixture.componentRef.setInput('likes', { count: 1, likedByMe: false });
     fixture.componentRef.setInput('comments', [comment]);
     fixture.detectChanges();
@@ -59,6 +68,7 @@ describe('AttemptReactionsComponent', () => {
     fixture.componentRef.setInput('viewerId', 'owner');
     fixture.componentRef.setInput('journalPublic', false);
     fixture.componentRef.setInput('hasStudioAccess', true);
+    fixture.componentRef.setInput('profileComplete', true);
     fixture.componentRef.setInput('likes', { count: 2, likedByMe: false });
     fixture.componentRef.setInput('comments', [comment]);
     fixture.detectChanges();
@@ -67,5 +77,27 @@ describe('AttemptReactionsComponent', () => {
     expect(root.textContent).toContain('Гарна спроба');
     expect(root.textContent).toContain('2');
     expect(root.querySelector('textarea')).toBeNull();
+  });
+
+  it('points an incomplete peer at the profile and keeps the return path', () => {
+    const fixture = TestBed.createComponent(AttemptReactionsComponent);
+    fixture.componentRef.setInput('attemptId', 'attempt');
+    fixture.componentRef.setInput('attemptOwnerId', 'owner');
+    fixture.componentRef.setInput('viewerId', 'peer');
+    fixture.componentRef.setInput('journalPublic', true);
+    fixture.componentRef.setInput('hasStudioAccess', false);
+    fixture.componentRef.setInput('profileComplete', false);
+    fixture.componentRef.setInput('profileReturnPath', '/app/journals/owner');
+    fixture.componentRef.setInput('likes', { count: 0, likedByMe: false });
+    fixture.componentRef.setInput('comments', []);
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.textContent).toContain('ім’я та номер телефону');
+    expect(root.querySelector('button[aria-pressed]')).toBeNull();
+    expect(root.querySelector('textarea')).toBeNull();
+    const link = root.querySelector('a');
+    expect(link?.getAttribute('href')).toContain('/app/profile');
+    expect(link?.getAttribute('href')).toContain('redirect');
   });
 });

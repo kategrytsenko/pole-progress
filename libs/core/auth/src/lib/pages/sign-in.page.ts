@@ -192,7 +192,13 @@ export class SignInPage {
       const requested = this.route.snapshot.queryParamMap.get('redirect')
         ?? sessionStorage.getItem('pp-auth-redirect');
       sessionStorage.removeItem('pp-auth-redirect');
-      void this.router.navigateByUrl(destinationAfterAuth(this.auth.hasStudioAccess(), requested));
+      void this.router.navigateByUrl(
+        destinationAfterAuth({
+          hasStudioAccess: this.auth.hasStudioAccess(),
+          profileComplete: this.auth.profileComplete(),
+          requested,
+        }),
+      );
     });
 
     effect(() => {

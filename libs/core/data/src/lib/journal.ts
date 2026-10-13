@@ -41,6 +41,7 @@ export interface JournalVisibility {
   attemptOwnerId: string;
   journalPublic: boolean;
   hasStudioAccess: boolean;
+  profileComplete: boolean;
 }
 
 const EMPTY_LIKE: LikeSummary = { count: 0, likedByMe: false };
@@ -52,9 +53,9 @@ export function commentBody(value: string): string {
   return body;
 }
 
-/** A peer reads another diary only when that owner opted in and the viewer has studio access. */
-export function canReadPeerJournal(journalPublic: boolean, hasStudioAccess: boolean): boolean {
-  return journalPublic && hasStudioAccess;
+/** A signed-in peer reads another diary only when that owner opted in. A pass is not required. */
+export function canReadPeerJournal(journalPublic: boolean): boolean {
+  return journalPublic;
 }
 
 export function canLikeAttempt(input: JournalVisibility): boolean {
@@ -62,7 +63,8 @@ export function canLikeAttempt(input: JournalVisibility): boolean {
     input.viewerId !== null &&
     input.viewerId !== input.attemptOwnerId &&
     input.journalPublic &&
-    input.hasStudioAccess
+    input.hasStudioAccess &&
+    input.profileComplete
   );
 }
 
@@ -70,15 +72,19 @@ export function canCommentOnAttempt(input: JournalVisibility): boolean {
   return canLikeAttempt(input);
 }
 
-export function canEditComment(authorId: string | null, viewerId: string | null): boolean {
-  return viewerId !== null && authorId === viewerId;
+export function canEditComment(
+  authorId: string | null,
+  viewerId: string | null,
+  profileComplete: boolean,
+): boolean {
+  return profileComplete && viewerId !== null && authorId === viewerId;
 }
 
 /** The attempt owner can always delete. The author can delete only while the journal is public. */
 export function canDeleteComment(
   input: JournalVisibility & { authorId: string | null },
 ): boolean {
-  if (input.viewerId === null) return false;
+  if (input.viewerId === null || !input.profileComplete) return false;
   if (input.viewerId === input.attemptOwnerId) return true;
   return (
     input.authorId === input.viewerId && input.journalPublic && input.hasStudioAccess

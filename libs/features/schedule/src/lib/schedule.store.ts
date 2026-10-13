@@ -11,6 +11,7 @@ import {
   ScheduleApi,
   SettingsApi,
 } from '@org/data';
+import { sessionBookingState } from './booking-access';
 import {
   addWeeks,
   formatKyivDate,
@@ -40,6 +41,7 @@ export interface ScheduleSessionView {
   readonly cancelled: boolean;
   readonly booked: boolean;
   readonly canBook: boolean;
+  readonly canCancel: boolean;
   readonly hint: string | null;
   readonly full: boolean;
 }
@@ -60,6 +62,7 @@ interface ScheduleState {
   passes: ClientPass[];
   products: PassProduct[];
   cutoffHours: number;
+  profileComplete: boolean;
   loading: boolean;
   error: string | null;
   pendingSessionId: string | null;
@@ -75,20 +78,6 @@ function toErrorMessage(err: unknown, fallback: string): string {
   if (err instanceof Error && err.message) return err.message;
   if (typeof err === 'string' && err) return err;
   return fallback;
-}
-
-function sessionHint(
-  session: ClassSessionCard,
-  booked: boolean,
-  hasPass: boolean,
-  now: number,
-): string | null {
-  if (session.status === 'cancelled') return 'Заняття скасовано';
-  const upcoming = Date.parse(session.starts_at) > now;
-  if (!upcoming && !booked) return 'Заняття вже відбулося';
-  if (!booked && session.booked_count >= session.capacity) return 'Немає місць';
-  if (!booked && upcoming && !hasPass) return 'Немає активного абонемента';
-  return null;
 }
 
 @Injectable()
@@ -109,6 +98,7 @@ export class ScheduleStore {
     passes: [],
     products: [],
     cutoffHours: 12,
+    profileComplete: false,
     loading: true,
     error: null,
     pendingSessionId: null,
@@ -137,8 +127,14 @@ export class ScheduleStore {
     this.state().passes.reduce((sum, pass) => sum + pass.remaining, 0),
   );
 
+  setProfileComplete(profileComplete: boolean): void {
+    this.state.update((current) =>
+      current.profileComplete === profileComplete ? current : { ...current, profileComplete },
+    );
+  }
+
   readonly days = computed<ScheduleDayView[]>(() => {
-    const { weekStart, sessions, bookings, passes } = this.state();
+    const { weekStart, sessions, bookings, passes, profileComplete } = this.state();
     const now = Date.now();
     const todayKey = kyivDateKey(new Date(now));
     const hasPass = passes.length > 0;
@@ -162,9 +158,16 @@ export class ScheduleStore {
         isToday: key === todayKey,
         sessions: rows.map((session) => {
           const booked = bookedBySession.has(session.id);
-          const upcoming = Date.parse(session.starts_at) > now;
-          const full = session.booked_count >= session.capacity;
-          const open = session.status === 'scheduled';
+          const booking = sessionBookingState({
+            status: session.status,
+            startsAt: session.starts_at,
+            bookedCount: session.booked_count,
+            capacity: session.capacity,
+            booked,
+            hasPass,
+            profileComplete,
+            now,
+          });
           return {
             id: session.id,
             typeName: session.type_name,
@@ -173,9 +176,10 @@ export class ScheduleStore {
             capacityLabel: `${session.booked_count} / ${session.capacity}`,
             cancelled: session.status === 'cancelled',
             booked,
-            canBook: open && upcoming && !full && hasPass && !booked,
-            hint: sessionHint(session, booked, hasPass, now),
-            full,
+            canBook: booking.canBook,
+            canCancel: booking.canCancel,
+            hint: booking.hint,
+            full: booking.full,
           };
         }),
       };

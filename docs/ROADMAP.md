@@ -14,12 +14,12 @@ The identifiers below are kept from the previous plan. Several items that were o
 | --- | --- | --- |
 | `s1-roles` | completed | **DONE:** roles are `admin` and `student` only. `20261012201704_remove_instructor_role.sql` removes the instructor role, `is_staff()`, and `is_instructor()`. Admin checks use `is_admin()`. `class_sessions.instructor_id` is the class teacher, not a role |
 | `s2-schema` | completed | **DONE** for the pass-only model: `class_types`, `class_sessions`, `bookings`, `pass_products`, `client_passes`. **DONE in repo:** nullable `profiles.phone` in `20261013110806_profile_phone.sql`; existing rows stay null. Hosted apply is **NEEDS VERIFICATION**. A booking without a pass is not scheduled; `bookings.pass_id` is still `not null` |
-| `s3-calendar` | completed | **PARTIAL:** `/app/schedule` is a week list with a class-type filter, backed by `list_sessions_in_range`. Instructor and time filters are missing. The route and the RPC require `has_studio_access()`, so a signed-in client without an active pass cannot open the schedule |
+| `s3-calendar` | completed | **PARTIAL:** `/app/schedule` is a week list with a class-type filter, backed by `list_sessions_in_range`. Instructor and time filters are missing. Any signed-in user can browse it: the route is only behind the shell sign-in guard, and `list_sessions_in_range` / `get_session_card` no longer require `has_studio_access()` or `profile_is_complete()`. Booking still does. Local SQL checked a client with the pass revoked. Hosted apply is **NEEDS VERIFICATION** |
 | `booking-optional` | completed | **PARTIAL, NEEDS VERIFICATION:** `book_session` / `cancel_booking` spend and sometimes restore a pass credit, and the schedule shows capacity. Booking still requires an active pass with `remaining > 0`. A client `INSERT` on `bookings` can skip the RPC. There is no booking path for a client without a pass. The app does not process payments |
 | `s4-diary-stages` | completed | **DONE:** attempt stages, chronological media timeline, diary routes |
 | `s5-diary-home` | pending | **PARTIAL, deferred:** stage counts, stage pills, search, and with/without-records filter exist. A recent-attempts list, a stage filter, and a first-attempt prompt on `/app` are not the next work |
 | `s6-instructor-diary` | completed | **DONE:** `/app/students` is admin-only. Instructor notes are removed. Comments stay on `attempt_comments` |
-| `public-journals` | completed | **DONE in repo** for a peer who already has studio access: `journal_public`, `/app/journals`, likes, and comments. **PLANNED:** the same read for a signed-in user with an incomplete profile or no pass. Live two-user behavior is **NEEDS VERIFICATION** |
+| `public-journals` | completed | **DONE in repo** for any signed-in user while `journal_public` is true, including an incomplete profile and a client without a pass. Likes and comments still need a completed profile and studio access. Private journals stay with the owner and admin. Local SQL checked a public read, a private hide, and a blocked like. A browser pass with two accounts is **NEEDS VERIFICATION**. Hosted apply is **NEEDS VERIFICATION** |
 | `admin-clients` | completed | **PARTIAL:** `/admin/clients` lists clients, changes roles, and issues or renews one active pass. It does not show profile completion, phone, bookings, or attendance, and it does not edit pass products |
 | `s7-passes-optional` | pending | **PARTIAL:** `PassesApi.listMine` and balances on `/app/schedule`. Passes are not on `/app/profile`. No pass-product editor |
 | `s8-classes-optional` | pending | **PLANNED, now in scope:** admin writes for class types and sessions exist in RLS. Angular has no screen for them |
@@ -31,7 +31,7 @@ Keep these checks separate:
 | Check | What it means today | What it must mean |
 | --- | --- | --- |
 | Signed in | Supabase session | Required for the app |
-| Profile complete | `profiles.phone` is nullable. `/app/profile` edits name and phone. `profile_is_complete()` is true only when both are non-empty after trimming whitespace. Booking, diary writes, and `has_studio_access()` do not use it yet | Non-empty visible name and a phone number. Required before booking, diary writes, diary media, and other write actions called out below |
+| Profile complete | `profiles.phone` is nullable. `/app/profile` edits name and phone. `profile_is_complete()` is true only when both are non-empty after trimming whitespace. `book_session`, the caller's `cancel_booking`, attempt and media writes, likes, and comments require it. `has_studio_access()` does not. An admin cancel does not | Non-empty visible name and a phone number. Required before booking, diary writes, diary media, and other write actions called out below |
 | Studio access | `has_studio_access()`: admin, or a `client_passes` row with `status = 'active'` and `now` inside `valid_from` / `valid_until`. Spending the last credit sets `exhausted`, which removes access | Still not the same as a completed profile. A pass with remaining credits is one way to attend. Attending one class without a pass is a separate path and is not designed yet. Do not treat a completed profile as either one. Neither path means the app took a payment |
 | External payment | Not recorded. Clients pay outside the app. `book_session` raises `no_pass` when there is no eligible pass | Stays outside the app. No gateway, checkout, or provider. A manual admin note that an external payment was confirmed is allowed only after that workflow is explicitly approved, and it is bookkeeping only |
 
@@ -80,8 +80,8 @@ Until those are decided, keep the current pass-only booking behavior. Do not add
 - Routes: `/sign-in`, `/forgot-password`, `/auth/callback`, `/access-pending`, `/forbidden`, and `/app/profile` in [`libs/core/auth/src/lib/auth.routes.ts`](../libs/core/auth/src/lib/auth.routes.ts), [`libs/features/shell/src/lib/shell.routes.ts`](../libs/features/shell/src/lib/shell.routes.ts), and [`apps/app/src/app/app.routes.ts`](../apps/app/src/app/app.routes.ts).
 - Email and password, plus Google OAuth, in [`libs/core/auth`](../libs/core/auth). Magic link is rejected in [`libs/core/auth/src/lib/email-otp.ts`](../libs/core/auth/src/lib/email-otp.ts). The sign-in page offers Google only. Instagram is not a provider in the UI. Password recovery is `/forgot-password`, then `/auth/callback?token_hash&type=recovery`.
 - Roles: `student` (UI: Клієнт) and `admin`. A client cannot change `profiles.role`. An admin can, including from `/admin/clients`.
-- `/app/profile` is behind `authOnlyGuard` only. Diary, schedule, journals, students, and `/admin` use `studioAccessGuard`. That guard follows `has_studio_access()`, so it currently means "admin or active pass", not "profile complete".
-- Tests: [`libs/core/auth/src/lib/studio-access.spec.ts`](../libs/core/auth/src/lib/studio-access.spec.ts). Playwright covers only the unauthenticated redirect to `/sign-in`.
+- `/app/profile`, `/app/schedule`, and `/app/journals` are behind the shell `authOnlyGuard` only. Diary home and `/app/elements` use `profileCompletionGuard`: an incomplete profile goes to `/app/profile` with `notice=incomplete` and a `redirect` back to the diary path; a complete profile without a pass still goes to `/access-pending`. Admins are not sent to the profile page for an incomplete profile. Students and `/admin` stay on `studioAccessGuard` and `adminOnlyGuard`.
+- Tests: [`libs/core/auth/src/lib/studio-access.spec.ts`](../libs/core/auth/src/lib/studio-access.spec.ts), [`libs/core/auth/src/lib/profile-gate.spec.ts`](../libs/core/auth/src/lib/profile-gate.spec.ts). Playwright covers only the unauthenticated redirect to `/sign-in`.
 
 Hosted Google, the recovery template, and password setup on a Google-only user are **NEEDS VERIFICATION**.
 
@@ -99,7 +99,7 @@ Tests: [`profile-completion.spec.ts`](../libs/core/auth/src/lib/profile-completi
 - Diary home: [`libs/features/dashboard`](../libs/features/dashboard). Stage counts, a stage pill on cards that have attempts, search, category filter, and **Усі / З записами / Без записів**.
 - Element timeline: [`libs/features/element`](../libs/features/element). Stages `trying | in_progress | mastered`. Chronological timeline. Owner create, edit, and delete. Private `media` bucket; rows store paths and the app mints signed URLs.
 - `held` was removed in [`supabase/migrations/20261012210351_remove_held_stage.sql`](../supabase/migrations/20261012210351_remove_held_stage.sql).
-- Writes require `has_studio_access()` in RLS ([`supabase/migrations/202610080006_studio_access.sql`](../supabase/migrations/202610080006_studio_access.sql)). They do not check a completed profile.
+- Writes require `has_studio_access()` and `profile_is_complete()` in RLS ([`supabase/migrations/202610080006_studio_access.sql`](../supabase/migrations/202610080006_studio_access.sql), gates in [`supabase/migrations/20261013114234_profile_completion_gates.sql`](../supabase/migrations/20261013114234_profile_completion_gates.sql)). A finished profile without a pass still cannot log attempts. Own diary **select** for a pass holder does not require a completed profile; the route guard is what keeps an incomplete profile off the diary screens.
 - Tests: [`libs/core/data/src/lib/attempt-stage.spec.ts`](../libs/core/data/src/lib/attempt-stage.spec.ts), [`libs/features/element/src/lib/timeline.spec.ts`](../libs/features/element/src/lib/timeline.spec.ts).
 
 Diary-home extras stay **PARTIAL** and are deferred. See [Deferred](#deferred).
@@ -109,15 +109,13 @@ Diary-home extras stay **PARTIAL** and are deferred. See [Deferred](#deferred).
 - `/app/students` is behind `adminOnlyGuard` ([`libs/features/students`](../libs/features/students)). Comments use `attempt_comments`.
 - [`supabase/migrations/202610080005_staff_read_student_diary.sql`](../supabase/migrations/202610080005_staff_read_student_diary.sql) added staff read of attempts and media. `20261012201704` limits those policies to `is_admin()`.
 
-### Public journals — DONE in the repository for pass holders
+### Public journals — DONE in the repository for any signed-in user
 
 - Default is private. The owner turns on **Публічний щоденник** on `/app`.
-- A peer with studio access opens `/app/journals`. Turning the journal private hides attempts and media again. An admin still reads every diary at `/app/students`.
-- Likes and comments: `attempt_likes`, `attempt_comments`. Comment text is trimmed and limited to 2000 characters.
-- Security: [`supabase/migrations/202610090002_public_journals.sql`](../supabase/migrations/202610090002_public_journals.sql). Peer policies require `has_studio_access()`. Helpers live in schema `private`.
-- Tests cover visibility helpers, not Postgres or Storage. Two-user behavior is **NEEDS VERIFICATION**.
-
-Opening these reads to a signed-in user without a pass is milestone 2. Private journals must stay private.
+- Any signed-in user opens `/app/journals`, including an incomplete profile and a client without a pass. Turning the journal private hides attempts and media again. An admin still reads every diary at `/app/students`.
+- Likes and comments: `attempt_likes`, `attempt_comments`. Comment text is trimmed and limited to 2000 characters. Those writes need `profile_is_complete()` and `has_studio_access()`.
+- Security: [`supabase/migrations/202610090002_public_journals.sql`](../supabase/migrations/202610090002_public_journals.sql), with the pass requirement removed from the public **select** policies in [`supabase/migrations/20261013114234_profile_completion_gates.sql`](../supabase/migrations/20261013114234_profile_completion_gates.sql). Helpers live in schema `private`. Phone is still absent from the peer column list.
+- Local SQL, rolled back: a client with no pass read a public attempt and its storage object, and did not see a private attempt or a private storage object. A like insert failed until the profile was complete and the pass was active. A browser pass with two accounts is **NEEDS VERIFICATION**.
 
 ### Admin clients — PARTIAL
 
@@ -132,9 +130,9 @@ Opening these reads to a signed-in user without a pass is milestone 2. Private j
 What exists:
 
 - `/app/schedule`: week list, class-type filter, book and cancel, capacity as `booked_count / capacity`, hints for full, cancelled, past, and missing pass. Pass balances sit on this page. [`libs/features/schedule`](../libs/features/schedule), [`ScheduleApi`](../libs/core/data/src/lib/schedule.api.ts), [`BookingsApi`](../libs/core/data/src/lib/bookings.api.ts).
-- `list_sessions_in_range` filters by time range and optional `type_id` only. It returns `instructor_id`, `instructor_name`, `capacity`, `booked_count`, and `status`. Instructor and time-of-day filters are not in the API or the page.
+- `list_sessions_in_range` filters by time range and optional `type_id` only. It returns `instructor_id`, `instructor_name`, `capacity`, `booked_count`, and `status`. It requires a signed-in user and does not require a pass or a completed profile. Instructor and time-of-day filters are not in the API or the page. `class_sessions` table select still requires studio access; the page uses the RPC. Class types, the shared element catalog, and `app_settings` select are open to any signed-in user so the schedule filter, the cutoff, and a public journal page can render.
 - `book_session` locks the session row, rejects a second `booked` row for the same user and session, counts `status = 'booked'`, and rejects the insert when that count is at capacity. A partial unique index matches that pair. The pass row is locked, then `remaining` drops by one. At zero the pass becomes `exhausted`.
-- `cancel_booking` uses the cutoff described in decision 3. The owner or an admin may cancel. The function also requires `has_studio_access()`. After the last credit, the pass is `exhausted`, so the client loses studio access and the RPC rejects their cancel. That lockout is unintended relative to "a client can cancel their own booking".
+- `cancel_booking` uses the cutoff described in decision 3. The owner or an admin may cancel. The owner's cancel also requires `profile_is_complete()`. An admin cancel does not. The function still requires `has_studio_access()`. After the last credit, the pass is `exhausted`, so the client loses studio access and the RPC rejects their cancel. That lockout is unintended relative to "a client can cancel their own booking".
 - `BookingsApi.listMine()` reads the caller's rows. The profile page does not. The schedule uses the list only to mark the visible week.
 - Schema and admin write policies: [`supabase/migrations/202610080001_schedule_bookings_passes.sql`](../supabase/migrations/202610080001_schedule_bookings_passes.sql), with `is_staff()` replaced by `is_admin()` in `20261012201704`. RPCs: [`supabase/migrations/202610080002_booking_rpcs.sql`](../supabase/migrations/202610080002_booking_rpcs.sql), studio-access checks in `202610080006`, `cancel_booking` redefined again in `20261012201704`.
 - The migration inserts demo class types, one week of sessions, one pass product, and two demo auth users. `20261012201704` sets the demo teacher's role to `student` and keeps the profile because sessions reference it. The statements are not wrapped in an environment check.
@@ -175,9 +173,11 @@ Acceptance:
 - Booking, diary writes, and `has_studio_access()` behave as they do today.
 - Unit tests cover the completion predicate, a role field on the client payload, and the public-journal column list. Local SQL and PostgREST checks passed and were rolled back or restored. Repeat save, reload, and a second-user phone read on the hosted project after `db push`.
 
-### 2. Browse without a completed profile; block restricted actions
+### 2. Browse without a completed profile; block restricted actions — DONE in the repository and on the local database
 
-Depends on milestone 1. This widens schedule and public-journal **reads** from "admin or active pass" to "any signed-in user". Private journals stay owner and admin only.
+Hosted apply and a browser pass are **NEEDS VERIFICATION**. Depends on milestone 1. This widens schedule and public-journal **reads** from "admin or active pass" to "any signed-in user". Private journals stay owner and admin only.
+
+Local SQL in one rolled-back transaction: an incomplete client with a pass could list sessions and a public journal, and `book_session`, a direct booking insert, an attempt insert, and a like insert failed. After the pass was revoked, schedule and public-journal reads still worked and a private attempt stayed hidden. Completing the profile did not make `has_studio_access()` true, and `book_session` then returned `no_pass`. Restoring the pass allowed `book_session`, an attempt insert, a media-row insert, a storage upload, and a like. An incomplete admin could `cancel_booking` that row. `anon` could not call `list_sessions_in_range`. The demo phone and pass were unchanged after rollback.
 
 Allowed while the profile is incomplete:
 
@@ -297,9 +297,9 @@ Run these when the milestone that touches them is implemented. The repo has no R
 
 | Area | Check |
 | --- | --- |
-| Profile completion | Incomplete user cannot `book_session`, insert an attempt, or upload to `media`, with or without a pass. Completing the profile does not make `has_studio_access()` true |
+| Profile completion | Incomplete user cannot `book_session`, insert an attempt, or upload to `media`, with or without a pass. Completing the profile does not make `has_studio_access()` true. Checked locally and rolled back. Hosted apply is **NEEDS VERIFICATION** |
 | Phone | Owner reads it through `own_profile_phone()`. A peer, including one reading a public journal, cannot select the column. Admin table select does not include it until milestone 9. Checked locally; hosted apply is **NEEDS VERIFICATION** |
-| Public and private journals | Public read follows the milestone 2 rule. Private attempts, media, likes, and comments stay with the owner and admin. Turning `journal_public` off hides the peer read again |
+| Public and private journals | Public read is any signed-in user. Private attempts, media, likes, and comments stay with the owner and admin. Turning `journal_public` off hides the peer read again. Local SQL checked one public and one private attempt. A browser pass is **NEEDS VERIFICATION** |
 | Booking capacity | Concurrent `book_session` stops at capacity. The partial unique index still blocks a second active row. Direct client insert fails after milestone 4 |
 | Pass balance | `remaining` never goes below zero. One credit cannot attach to two `booked` rows. Cancel restores a credit only under the current cutoff, or under a later decided rule. A client cannot update `client_passes` |
 | Roles | A client cannot set `profiles.role`. Admin routes stay admin-only in the database, not only in the router |
@@ -344,8 +344,9 @@ Migrations in `supabase/migrations/`, in apply order:
 | `20261012201704_remove_instructor_role.sql` | Drops the instructor role and `attempt_instructor_notes`. Former `is_staff()` checks become `is_admin()`. Applied migration files still contain the old words |
 | `20261012210351_remove_held_stage.sql` | Rewrites `element_attempts.stage = held` to `in_progress` and rebuilds `attempt_stage` as `trying \| in_progress \| mastered` |
 | `20261013110806_profile_phone.sql` | Nullable `profiles.phone`, `profile_is_complete()`, `own_profile_phone()`, and column privileges that omit `phone` from client selects |
+| `20261013114234_profile_completion_gates.sql` | Schedule and public-journal reads for any signed-in user. Booking, diary writes, media writes, likes, and comments also require `profile_is_complete()`. Admin cancel does not. `has_studio_access()` is unchanged |
 
-Future files, not written yet: browse and write gates (milestone 2), booking insert lockdown and owner cancel after an exhausted pass (milestone 4), admin phone read for the client directory (milestone 9). No migration for a payment status or a nullable `pass_id` is planned until decisions 1 and 2 are approved.
+Future files, not written yet: booking insert lockdown and owner cancel after an exhausted pass (milestone 4), admin phone read for the client directory (milestone 9). No migration for a payment status or a nullable `pass_id` is planned until decisions 1 and 2 are approved.
 
 Storage: `media` is private (`user/{uid}/attempt/{attemptId}/...`). `catalog` is public read. The database stores paths.
 
@@ -397,13 +398,14 @@ Implemented in SQL and TypeScript, and not proven by an automated database or br
 - A second client with an active pass can open a public journal, see photos and videos through signed URLs, like, comment, edit their comment, and lose that read when the owner turns the journal private.
 - The owner and an admin still see existing likes and comments after the journal goes private. A peer cannot.
 - Issuing or renewing a pass on `/admin/clients` is what lets that client pass `studioAccessGuard`.
-- `book_session` spends one class, stops at capacity under concurrent calls, and `cancel_booking` restores a credit only when the RPC says so. The client insert policy is a known hole until milestone 4; do not treat current capacity as proven.
+- `book_session` spends one class, stops at capacity under concurrent calls, and `cancel_booking` restores a credit only when the RPC says so. The client insert policy is a known hole until milestone 4; an incomplete profile can no longer use it, and a complete profile with a pass still can. Do not treat current capacity as proven.
 - A client who spent their last credit can or cannot cancel. The current function requires `has_studio_access()`, so the expected result today is a refusal. Milestone 4 changes that.
 - The hosted project needs `20261012201704` before the app that no longer sends `instructor` can change roles. If `202610080001` has not been applied, the next `db push` still creates the demo class teacher, demo client, pass, and a week of sessions, then `20261012201704` sets that teacher's role to `student`.
 - The hosted project needs `20261012210351` before the app that no longer offers **Утримую** is served. That migration rewrites every `held` attempt to `in_progress`. A cached client that still submits `held` gets a database error until refresh.
 - The hosted Google provider, redirect URLs, and Recovery email template match the production origin. The repo only configures the local CLI path. Hosted email confirmation may still be on; the app treats an empty `identities` list on sign-up as an existing account.
 - Password recovery and setting a password on a Google-only user. The flow is in the app and the local recovery template; hosted SMTP and the dashboard template were not changed.
-- Saving a name and phone on `/app/profile` worked through local PostgREST: `profile_is_complete()` flipped to true and `own_profile_phone()` returned the saved number. A role update returned `42501`. A second local user received `42501` for `select=phone`, and `own_profile_phone()` returned only that user's own number. The demo phone was restored to null. The same save was not clicked through in a browser. The hosted project does not have `20261013110806` until `supabase db push`. There is still no RLS integration suite in CI.
+- Saving a name and phone on `/app/profile` worked through local PostgREST: `profile_is_complete()` flipped to true and `own_profile_phone()` returned the saved number. A role update returned `42501`. A second local user received `42501` for `select=phone`, and `own_profile_phone()` returned only that user's own number. The demo phone was restored to null. The same save was not clicked through in a browser. The hosted project does not have `20261013110806` or `20261013114234` until `supabase db push`. There is still no RLS integration suite in CI.
+- Milestone 2 was not clicked through in a browser. Local SQL covered schedule browsing, public and private journal reads, `book_session`, attempt insert, media upload, likes, and an admin cancel. Repeat that on the hosted project after `db push`, then sign in as an incomplete client and as a client with no pass and walk schedule, a public journal, a private journal, book, diary create, and media upload.
 
 ## Technical debt
 

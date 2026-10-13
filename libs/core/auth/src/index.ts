@@ -6,5 +6,8 @@ export * from './lib/profiles.api';
 export * from './lib/auth-only.guard';
 export * from './lib/studio-access.guard';
 export * from './lib/admin-only.guard';
+export * from './lib/profile-completion.guard';
+export * from './lib/profile-gate';
+export * from './lib/auth-redirect';
 export * from './lib/auth.routes';
 export * from './lib/pages/profile.page';

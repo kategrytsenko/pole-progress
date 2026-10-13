@@ -129,6 +129,13 @@ export class ProfilesApi {
    * function is not migrated yet, falls back to an active `client_passes` row.
    * The admin bypass lives in `resolveStudioAccess`, not in the fallback query.
    */
+  /** Database completion check. A missing or failed read stays incomplete. */
+  async isProfileComplete(): Promise<boolean> {
+    const { data, error } = await this.client.rpc('profile_is_complete');
+    if (error) throw error;
+    return data === true;
+  }
+
   async hasStudioAccess(): Promise<boolean> {
     const { data, error } = await this.client.rpc('has_studio_access');
     if (!error) return isTrue(data);

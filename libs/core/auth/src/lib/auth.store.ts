@@ -18,6 +18,7 @@ interface AuthState {
   user: AuthUser | null;
   role: UserRole | null;
   studioAccess: StudioAccessState;
+  profileComplete: boolean;
   loading: boolean;
   error: string | null;
 }
@@ -37,6 +38,7 @@ export class AuthStore {
     user: null,
     role: null,
     studioAccess: 'pending',
+    profileComplete: false,
     loading: true,
     error: null,
   });
@@ -51,6 +53,7 @@ export class AuthStore {
   readonly isAuthed = computed<boolean>(() => this.user() !== null);
   readonly isAdmin = computed<boolean>(() => this.role() === 'admin');
   readonly hasStudioAccess = computed<boolean>(() => this.studioAccess() === 'allowed');
+  readonly profileComplete = computed<boolean>(() => this.state().profileComplete);
   readonly accessResolved = computed<boolean>(() => {
     if (this.loading()) return false;
     if (!this.user()) return true;
@@ -92,6 +95,7 @@ export class AuthStore {
           user: newUser,
           role: sameUser ? s.role : null,
           studioAccess: sameUser ? s.studioAccess : 'pending',
+          profileComplete: sameUser ? s.profileComplete : false,
           error: sameUser ? s.error : null,
         }));
 
@@ -117,6 +121,10 @@ export class AuthStore {
     await this.init();
     if (!this.state().user || this.state().studioAccess !== 'pending') return;
     await this.loadAccess();
+  }
+
+  setProfileComplete(complete: boolean): void {
+    this.state.update((s) => ({ ...s, profileComplete: complete }));
   }
 
   async refreshStudioAccess(): Promise<void> {
@@ -287,6 +295,7 @@ export class AuthStore {
         user: null,
         role: null,
         studioAccess: 'pending',
+        profileComplete: false,
         loading: false,
         error: null,
       });
@@ -309,6 +318,7 @@ export class AuthStore {
       user,
       role: null,
       studioAccess: 'pending',
+      profileComplete: false,
       error: user ? null : 'Сесія не створилась. Спробуй ще раз.',
     }));
     if (user) await this.loadAccess();
@@ -331,9 +341,10 @@ export class AuthStore {
     const userId = this.state().user?.id;
     if (!userId) return;
 
-    const [roleResult, accessResult] = await Promise.allSettled([
+    const [roleResult, accessResult, profileResult] = await Promise.allSettled([
       this.profiles.getMyRole(),
       this.profiles.hasStudioAccess(),
+      this.profiles.isProfileComplete(),
     ]);
 
     if (this.state().user?.id !== userId) return;
@@ -342,6 +353,7 @@ export class AuthStore {
     const accessOk = accessResult.status === 'fulfilled';
     const databaseAllows = accessOk ? accessResult.value : false;
     const admin = role === 'admin';
+    const profileComplete = profileResult.status === 'fulfilled' && profileResult.value;
 
     if (admin || accessOk) {
       this.state.update((s) =>
@@ -350,6 +362,7 @@ export class AuthStore {
               ...s,
               role,
               studioAccess: resolveStudioAccess({ role, databaseAllows }),
+              profileComplete,
               error: null,
             }
           : s,
@@ -368,6 +381,7 @@ export class AuthStore {
             ...s,
             role,
             studioAccess: 'error',
+            profileComplete,
             error: toAuthError(reason, 'Не вдалось перевірити доступ до студії'),
           }
         : s,

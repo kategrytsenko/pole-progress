@@ -31,9 +31,50 @@ describe('post-auth navigation', () => {
   });
 
   it('sends outsiders to the membership screen and members to the requested page', () => {
-    expect(destinationAfterAuth(false, '/app')).toBe('/access-pending');
-    expect(destinationAfterAuth(true, '/app/schedule')).toBe('/app/schedule');
-    expect(destinationAfterAuth(true, 'https://evil.test')).toBe('/app');
+    expect(
+      destinationAfterAuth({ hasStudioAccess: false, profileComplete: true, requested: '/app' }),
+    ).toBe('/access-pending');
+    expect(
+      destinationAfterAuth({
+        hasStudioAccess: true,
+        profileComplete: true,
+        requested: '/app/schedule',
+      }),
+    ).toBe('/app/schedule');
+    expect(
+      destinationAfterAuth({
+        hasStudioAccess: true,
+        profileComplete: true,
+        requested: 'https://evil.test',
+      }),
+    ).toBe('/app');
+  });
+
+  it('keeps schedule and journals open without a pass, and returns an incomplete diary to the profile', () => {
+    expect(
+      destinationAfterAuth({
+        hasStudioAccess: false,
+        profileComplete: false,
+        requested: '/app/schedule',
+      }),
+    ).toBe('/app/schedule');
+    expect(
+      destinationAfterAuth({
+        hasStudioAccess: false,
+        profileComplete: false,
+        requested: '/app/journals/student-1',
+      }),
+    ).toBe('/app/journals/student-1');
+    expect(
+      destinationAfterAuth({
+        hasStudioAccess: false,
+        profileComplete: false,
+        requested: '/app/elements/spin',
+      }),
+    ).toBe('/app/profile?notice=incomplete&redirect=%2Fapp%2Felements%2Fspin');
+    expect(
+      destinationAfterAuth({ hasStudioAccess: true, profileComplete: false, requested: '/app' }),
+    ).toBe('/app/profile?notice=incomplete&redirect=%2Fapp');
   });
 });
 

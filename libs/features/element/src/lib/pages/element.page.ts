@@ -9,10 +9,12 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DatePipe } from '@angular/common';
-import { ActivatedRoute, RouterLink } from '@angular/router';
-import { AuthStore } from '@org/auth';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { AuthStore, profileCompletionPath } from '@org/auth';
 import {
   ATTEMPT_STAGE_LABELS,
+  canUploadDiaryMedia,
+  canWriteOwnDiary,
   ATTEMPT_STAGE_MARK_CLASS,
   ATTEMPT_STAGE_PILL_CLASS,
   ATTEMPT_STAGES,
@@ -76,7 +78,16 @@ type StepState = 'current' | 'reached' | 'upcoming';
             </div>
           </div>
 
-          @if (canEditAttempts) {
+          @if (showProfileWriteNotice) {
+            <p class="max-w-md text-sm text-amber-950">
+              Щоб додати спробу або завантажити медіа, у профілі мають бути ім’я та номер телефону.
+              <a
+                routerLink="/app/profile"
+                [queryParams]="{ notice: 'incomplete', redirect: profileReturnPath }"
+                class="font-medium underline underline-offset-2"
+              >Перейти в профіль</a>
+            </p>
+          } @else if (canEditAttempts) {
             <button
               type="button"
               (click)="onAddAttempt()"
@@ -227,6 +238,8 @@ type StepState = 'current' | 'reached' | 'upcoming';
                       [viewerId]="viewerId"
                       [journalPublic]="store.journalPublic()"
                       [hasStudioAccess]="auth.hasStudioAccess()"
+                      [profileComplete]="auth.profileComplete()"
+                      [profileReturnPath]="profileReturnPath"
                       [likes]="store.likesFor(entry.attempt.id)"
                       [comments]="store.commentsFor(entry.attempt.id)"
                       [busy]="store.savingLikeId() === entry.attempt.id || store.savingCommentAttemptId() === entry.attempt.id"
@@ -269,7 +282,9 @@ export class ElementPage implements OnInit {
   private readonly dashboard = inject(DashboardStore);
   private readonly toasts = inject(ToastService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
+  protected profileReturnPath = '/app';
 
   @ViewChild('dialog') private dialog?: AddAttemptDialogComponent;
 
@@ -277,6 +292,10 @@ export class ElementPage implements OnInit {
     if (this.diary === 'own') return 'Щоденник';
     const prefix = this.diary === 'journal' ? 'Публічний щоденник' : 'Щоденник';
     return `${prefix} · ${studentLabel(this.store.studentName())}`;
+  }
+
+  protected get showProfileWriteNotice(): boolean {
+    return this.diary === 'own' && !canWriteOwnDiary(this.auth.profileComplete(), true);
   }
 
   protected get emptyAttemptsMessage(): string {
@@ -299,6 +318,7 @@ export class ElementPage implements OnInit {
   }
 
   protected async onToggleLike(attemptId: string): Promise<void> {
+    if (!(await this.keepJournalWrite())) return;
     try {
       await this.store.toggleLike(attemptId);
     } catch (err: unknown) {
@@ -307,6 +327,7 @@ export class ElementPage implements OnInit {
   }
 
   protected async onAddComment(attemptId: string, body: string): Promise<void> {
+    if (!(await this.keepJournalWrite())) return;
     try {
       await this.store.addComment(attemptId, body);
     } catch (err: unknown) {
@@ -318,6 +339,7 @@ export class ElementPage implements OnInit {
     attemptId: string,
     change: { id: string; body: string },
   ): Promise<void> {
+    if (!(await this.keepJournalWrite())) return;
     try {
       await this.store.updateComment(attemptId, change.id, change.body);
       this.toasts.success('Коментар збережено');
@@ -327,6 +349,7 @@ export class ElementPage implements OnInit {
   }
 
   protected async onDeleteComment(attemptId: string, commentId: string): Promise<void> {
+    if (!(await this.keepJournalWrite())) return;
     try {
       await this.store.deleteComment(attemptId, commentId);
       this.toasts.success('Коментар видалено');
@@ -339,8 +362,13 @@ export class ElementPage implements OnInit {
     this.diary = this.diaryFromRoute();
     const studentId = this.diary === 'own' ? null : this.studentIdFromRoute();
     this.viewerId = this.auth.user()?.id ?? null;
-    this.canEditAttempts =
+    this.profileReturnPath = this.router.url || '/app';
+    const ownsDiary =
       this.diary === 'own' || (this.viewerId !== null && studentId === this.viewerId);
+    this.canEditAttempts = ownsDiary && canWriteOwnDiary(
+      this.auth.profileComplete(),
+      this.auth.hasStudioAccess(),
+    );
 
     if (this.diary === 'staff' && studentId) {
       this.backLink = ['/app/students', studentId];
@@ -378,11 +406,29 @@ export class ElementPage implements OnInit {
     return null;
   }
 
+  private async keepJournalWrite(): Promise<boolean> {
+    if (this.auth.profileComplete() && this.auth.hasStudioAccess()) return true;
+    if (!this.auth.profileComplete()) {
+      await this.router.navigateByUrl(profileCompletionPath(this.profileReturnPath));
+    }
+    return false;
+  }
+
+  private allowDiaryWrite(): boolean {
+    if (canUploadDiaryMedia(this.auth.profileComplete(), this.auth.hasStudioAccess())) return true;
+    if (!this.auth.profileComplete()) {
+      void this.router.navigateByUrl(profileCompletionPath(this.profileReturnPath));
+    }
+    return false;
+  }
+
   protected onAddAttempt(): void {
+    if (!this.allowDiaryWrite()) return;
     this.dialog?.open();
   }
 
   protected onEditAttempt(attempt: ElementAttempt): void {
+    if (!this.allowDiaryWrite()) return;
     this.dialog?.openForEdit(attempt);
   }
 
@@ -397,6 +443,7 @@ export class ElementPage implements OnInit {
   }
 
   protected async onDeleteAttempt(attemptId: string): Promise<void> {
+    if (!this.allowDiaryWrite()) return;
     if (typeof window !== 'undefined' && !window.confirm('Видалити цю спробу?')) {
       return;
     }

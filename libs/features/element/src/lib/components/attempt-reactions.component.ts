@@ -7,6 +7,7 @@ import {
   Output,
   signal,
 } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import {
   canCommentOnAttempt,
   canDeleteComment,
@@ -20,7 +21,7 @@ import {
 
 @Component({
   selector: 'pp-attempt-reactions',
-  imports: [DatePipe],
+  imports: [DatePipe, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (visible()) {
@@ -40,6 +41,17 @@ import {
           <p class="text-sm text-neutral-600">
             Подобається
             <span class="font-semibold tabular-nums text-neutral-900">{{ likes.count }}</span>
+          </p>
+        }
+
+        @if (needsProfileForWrites()) {
+          <p class="mt-3 text-sm text-amber-950">
+            Щоб поставити вподобання або залишити коментар, у профілі мають бути ім’я та номер телефону.
+            <a
+              routerLink="/app/profile"
+              [queryParams]="profileQuery()"
+              class="font-medium underline underline-offset-2"
+            >Перейти в профіль</a>
           </p>
         }
 
@@ -145,6 +157,8 @@ export class AttemptReactionsComponent {
   @Input({ required: true }) viewerId!: string | null;
   @Input({ required: true }) journalPublic!: boolean;
   @Input({ required: true }) hasStudioAccess!: boolean;
+  @Input({ required: true }) profileComplete!: boolean;
+  @Input() profileReturnPath = '';
   @Input({ required: true }) likes!: LikeSummary;
   @Input({ required: true }) comments!: readonly AttemptComment[];
   @Input() busy = false;
@@ -159,6 +173,7 @@ export class AttemptReactionsComponent {
   protected readonly composer = signal('');
 
   protected visible(): boolean {
+    if (this.needsProfileForWrites()) return true;
     if (this.canLike()) return true;
     if (this.likes.count > 0 || this.comments.length > 0) return true;
     return this.viewerIsOwner() && this.journalPublic;
@@ -173,7 +188,21 @@ export class AttemptReactionsComponent {
   }
 
   protected canEdit(comment: AttemptComment): boolean {
-    return canEditComment(comment.author_id, this.viewerId);
+    return canEditComment(comment.author_id, this.viewerId, this.profileComplete);
+  }
+
+  protected needsProfileForWrites(): boolean {
+    return (
+      this.journalPublic &&
+      !this.profileComplete &&
+      this.viewerId !== null &&
+      this.viewerId !== this.attemptOwnerId
+    );
+  }
+
+  protected profileQuery(): { notice: string; redirect?: string } {
+    const redirect = this.profileReturnPath.trim();
+    return redirect ? { notice: 'incomplete', redirect } : { notice: 'incomplete' };
   }
 
   protected canDelete(comment: AttemptComment): boolean {
@@ -244,6 +273,7 @@ export class AttemptReactionsComponent {
       attemptOwnerId: this.attemptOwnerId,
       journalPublic: this.journalPublic,
       hasStudioAccess: this.hasStudioAccess,
+      profileComplete: this.profileComplete,
     };
   }
 

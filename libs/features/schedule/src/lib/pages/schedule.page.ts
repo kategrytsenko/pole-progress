@@ -1,4 +1,10 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
+import { Router, RouterLink } from '@angular/router';
+import {
+  PROFILE_NAME_PHONE_REQUIREMENT,
+  profileCompletionPath,
+  AuthStore,
+} from '@org/auth';
 import { StateBlockComponent, ToastService } from '@org/shell';
 import { ScheduleStore } from '../schedule.store';
 
@@ -10,6 +16,7 @@ const BOOKING_ERRORS: readonly { code: string; message: string }[] = [
   { code: 'booking_not_found', message: 'Запис не знайдено.' },
   { code: 'not_allowed', message: 'Немає прав скасувати цей запис.' },
   { code: 'not_authenticated', message: 'Увійдіть, щоб змінити запис.' },
+  { code: 'profile_incomplete', message: PROFILE_NAME_PHONE_REQUIREMENT },
 ];
 
 function bookingErrorMessage(err: unknown): string {
@@ -27,7 +34,7 @@ function errorText(err: unknown): string {
 
 @Component({
   selector: 'pp-schedule',
-  imports: [StateBlockComponent],
+  imports: [RouterLink, StateBlockComponent],
   providers: [ScheduleStore],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -40,6 +47,18 @@ function errorText(err: unknown): string {
           </p>
         </div>
       </header>
+
+      @if (!auth.profileComplete()) {
+        <p class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950" role="status">
+          {{ profileRequirement }}
+          Запис і скасування відкриються після збереження.
+          <a
+            routerLink="/app/profile"
+            [queryParams]="{ notice: 'incomplete', redirect: '/app/schedule' }"
+            class="font-medium underline underline-offset-2"
+          >Заповнити профіль</a>
+        </p>
+      }
 
       @if (!store.loading() && !store.error()) {
         <section aria-label="Абонементи" class="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
@@ -179,14 +198,16 @@ function errorText(err: unknown): string {
                           <span class="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
                             Ви записані
                           </span>
-                          <button
-                            type="button"
-                            (click)="onCancel(session.id)"
-                            [disabled]="store.pendingSessionId() !== null"
-                            class="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-800 transition hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {{ store.pendingSessionId() === session.id ? 'Скасування…' : 'Скасувати запис' }}
-                          </button>
+                          @if (session.canCancel) {
+                            <button
+                              type="button"
+                              (click)="onCancel(session.id)"
+                              [disabled]="store.pendingSessionId() !== null"
+                              class="rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm font-medium text-neutral-800 transition hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {{ store.pendingSessionId() === session.id ? 'Скасування…' : 'Скасувати запис' }}
+                            </button>
+                          }
                         } @else if (session.canBook) {
                           <button
                             type="button"
@@ -215,9 +236,13 @@ function errorText(err: unknown): string {
 })
 export class SchedulePage implements OnInit {
   protected readonly store = inject(ScheduleStore);
+  protected readonly auth = inject(AuthStore);
+  protected readonly profileRequirement = PROFILE_NAME_PHONE_REQUIREMENT;
   private readonly toast = inject(ToastService);
+  private readonly router = inject(Router);
 
   ngOnInit(): void {
+    this.store.setProfileComplete(this.auth.profileComplete());
     void this.store.load();
   }
 
@@ -238,6 +263,10 @@ export class SchedulePage implements OnInit {
   }
 
   protected async onBook(sessionId: string): Promise<void> {
+    if (!this.auth.profileComplete()) {
+      await this.router.navigateByUrl(profileCompletionPath('/app/schedule'));
+      return;
+    }
     try {
       const booked = await this.store.book(sessionId);
       if (booked) this.toast.success('Вас записано на заняття.');
@@ -247,6 +276,10 @@ export class SchedulePage implements OnInit {
   }
 
   protected async onCancel(sessionId: string): Promise<void> {
+    if (!this.auth.profileComplete()) {
+      await this.router.navigateByUrl(profileCompletionPath('/app/schedule'));
+      return;
+    }
     try {
       const result = await this.store.cancel(sessionId);
       if (!result) return;

@@ -2,17 +2,8 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthStore } from '@org/auth';
 import { BrandingService } from '@org/data';
+import { shellNavItems, type NavEmphasis } from '../shell-nav';
 import { ToastHostComponent } from '../toast/toast-host.component';
-
-type NavEmphasis = 'primary' | 'optional' | 'admin';
-
-interface ShellNavItem {
-  link: string;
-  label: string;
-  exact: boolean;
-  emphasis: NavEmphasis;
-  dividerBefore?: boolean;
-}
 
 @Component({
   selector: 'pp-app-shell',
@@ -120,38 +111,12 @@ export class AppShellPage {
   protected readonly branding = inject(BrandingService);
   private readonly router = inject(Router);
 
-  protected readonly navItems = computed<ShellNavItem[]>(() => {
-    if (!this.auth.hasStudioAccess()) return [];
-    const items: ShellNavItem[] = [
-      { link: '/app', label: 'Щоденник', exact: true, emphasis: 'primary' },
-      {
-        link: '/app/schedule',
-        label: 'Розклад',
-        exact: true,
-        emphasis: 'optional',
-        dividerBefore: true,
-      },
-      {
-        link: '/app/journals',
-        label: 'Щоденники',
-        exact: false,
-        emphasis: 'optional',
-      },
-    ];
-    if (this.auth.isAdmin()) {
-      items.push({
-        link: '/app/students',
-        label: 'Учні',
-        exact: false,
-        emphasis: 'admin',
-        dividerBefore: true,
-      });
-    }
-    if (this.auth.isAdmin()) {
-      items.push({ link: '/admin', label: 'Адмін', exact: false, emphasis: 'admin' });
-    }
-    return items;
-  });
+  protected readonly navItems = computed(() =>
+    shellNavItems({
+      studioAccess: this.auth.hasStudioAccess(),
+      admin: this.auth.isAdmin(),
+    }),
+  );
 
   protected navLinkClass(emphasis: NavEmphasis, active: boolean): string {
     if (emphasis === 'primary') {

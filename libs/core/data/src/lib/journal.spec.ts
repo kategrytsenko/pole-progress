@@ -19,11 +19,13 @@ const peer: {
   attemptOwnerId: string;
   journalPublic: boolean;
   hasStudioAccess: boolean;
+  profileComplete: boolean;
 } = {
   viewerId: 'peer',
   attemptOwnerId: 'owner',
   journalPublic: true,
   hasStudioAccess: true,
+  profileComplete: true,
 };
 
 describe('public journal profile columns', () => {
@@ -39,28 +41,39 @@ describe('public journal profile columns', () => {
 });
 
 describe('public journal visibility', () => {
-  it('lets a studio peer read only a public journal', () => {
-    expect(canReadPeerJournal(true, true)).toBe(true);
-    expect(canReadPeerJournal(false, true)).toBe(false);
-    expect(canReadPeerJournal(true, false)).toBe(false);
+  it('lets a signed-in peer read a public journal without a pass', () => {
+    expect(canReadPeerJournal(true)).toBe(true);
+    expect(canReadPeerJournal(false)).toBe(false);
   });
 
-  it('allows a like or comment only on someone else\'s public journal', () => {
+  it('allows a like or comment only on someone else\'s public journal with a complete profile', () => {
     expect(canLikeAttempt(peer)).toBe(true);
     expect(canCommentOnAttempt(peer)).toBe(true);
     expect(canLikeAttempt({ ...peer, viewerId: 'owner' })).toBe(false);
     expect(canLikeAttempt({ ...peer, journalPublic: false })).toBe(false);
     expect(canCommentOnAttempt({ ...peer, hasStudioAccess: false })).toBe(false);
+    expect(canLikeAttempt({ ...peer, profileComplete: false })).toBe(false);
+    expect(canCommentOnAttempt({ ...peer, profileComplete: false })).toBe(false);
     expect(canLikeAttempt({ ...peer, viewerId: null })).toBe(false);
   });
 
-  it('lets the author edit their comment and nobody else', () => {
-    expect(canEditComment('peer', 'peer')).toBe(true);
-    expect(canEditComment('peer', 'owner')).toBe(false);
-    expect(canEditComment(null, 'peer')).toBe(false);
+  it('lets the author edit their comment only when the profile is complete', () => {
+    expect(canEditComment('peer', 'peer', true)).toBe(true);
+    expect(canEditComment('peer', 'peer', false)).toBe(false);
+    expect(canEditComment('peer', 'owner', true)).toBe(false);
+    expect(canEditComment(null, 'peer', true)).toBe(false);
   });
 
   it('lets the owner delete a comment after the journal is private, and stops the author', () => {
+    expect(
+      canDeleteComment({
+        ...peer,
+        authorId: 'peer',
+        viewerId: 'owner',
+        journalPublic: false,
+        profileComplete: false,
+      }),
+    ).toBe(false);
     expect(
       canDeleteComment({ ...peer, authorId: 'peer', viewerId: 'owner', journalPublic: false }),
     ).toBe(true);

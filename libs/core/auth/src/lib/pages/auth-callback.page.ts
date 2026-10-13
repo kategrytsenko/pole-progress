@@ -122,7 +122,11 @@ export class AuthCallbackPage {
         ?? sessionStorage.getItem('pp-auth-redirect');
       sessionStorage.removeItem('pp-auth-redirect');
       void this.router.navigateByUrl(
-        destinationAfterAuth(this.auth.hasStudioAccess(), requested),
+        destinationAfterAuth({
+          hasStudioAccess: this.auth.hasStudioAccess(),
+          profileComplete: this.auth.profileComplete(),
+          requested,
+        }),
         { replaceUrl: true },
       );
     });

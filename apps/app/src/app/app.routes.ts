@@ -1,5 +1,11 @@
 import { Route } from '@angular/router';
-import { ProfilePage, adminOnlyGuard, authRoutes, studioAccessGuard } from '@org/auth';
+import {
+  ProfilePage,
+  adminOnlyGuard,
+  authRoutes,
+  profileCompletionGuard,
+  studioAccessGuard,
+} from '@org/auth';
 
 export const appRoutes: Route[] = [
   ...authRoutes,
@@ -19,17 +25,15 @@ export const appRoutes: Route[] = [
           },
           {
             path: 'elements',
-            canMatch: [studioAccessGuard],
+            canMatch: [profileCompletionGuard],
             loadChildren: () => import('@org/element').then((mod) => mod.elementRoutes),
           },
           {
             path: 'schedule',
-            canMatch: [studioAccessGuard],
             loadChildren: () => import('@org/schedule').then((mod) => mod.scheduleRoutes),
           },
           {
             path: 'journals',
-            canMatch: [studioAccessGuard],
             loadChildren: () => import('@org/students').then((mod) => mod.journalsRoutes),
           },
           {
@@ -39,7 +43,7 @@ export const appRoutes: Route[] = [
           },
           {
             path: '',
-            canMatch: [studioAccessGuard],
+            canMatch: [profileCompletionGuard],
             loadChildren: () => import('@org/dashboard').then((mod) => mod.dashboardRoutes),
           },
         ]),
