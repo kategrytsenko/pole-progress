@@ -2,9 +2,9 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthStore } from '../auth.store';
+import { accessBenefitCopy } from '../access-benefit';
 import { PROFILE_INCOMPLETE_NOTICE, safeInternalPath } from '../auth-redirect';
 import { passwordFormError } from '../password-rules';
-import { PROFILE_NAME_PHONE_REQUIREMENT } from '../profile-gate';
 import {
   isProfileComplete,
   PROFILE_NAME_MAX_LENGTH,
@@ -27,19 +27,6 @@ import { ProfilesApi } from '../profiles.api';
         </p>
       </header>
 
-      @if (blockedAction()) {
-        <p class="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950" role="status">
-          Ця дія недоступна, доки профіль не заповнений. {{ profileRequirement }}
-        </p>
-      }
-
-      @if (!auth.hasStudioAccess()) {
-        <p class="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          Членство студії ще не активне.
-          <a routerLink="/access-pending" class="font-medium underline underline-offset-2">Деталі доступу</a>
-        </p>
-      }
-
       @if (status() === 'loading') {
         <div
           class="h-8 w-8 animate-spin rounded-full border-2 border-neutral-300 border-t-primary"
@@ -58,14 +45,25 @@ import { ProfilesApi } from '../profiles.api';
           Не вдалось завантажити профіль. Перевір з’єднання і онови сторінку.
         </p>
       } @else if (status() === 'ready') {
-        @if (complete()) {
-          <p class="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950" role="status">
-            Профіль заповнений. Абонемент і запис на заняття перевіряються окремо.
-          </p>
+        @if (benefit(); as card) {
+          <section class="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950" role="status" aria-label="Що доступно">
+            @if (card.title) {
+              <p class="font-medium">{{ card.title }}</p>
+            }
+            <ul class="list-disc space-y-1 pl-4" [class.mt-2]="!!card.title">
+              <li>{{ card.now }}</li>
+              @if (card.profile) {
+                <li>{{ card.profile }}</li>
+              }
+              <li>{{ card.pass }}</li>
+            </ul>
+            @if (!auth.hasStudioAccess()) {
+              <a routerLink="/access-pending" class="mt-2 inline-block font-medium underline underline-offset-2">Деталі доступу</a>
+            }
+          </section>
         } @else {
-          <p class="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950" role="status">
-            Профіль не заповнений. Потрібні ім’я та номер телефону. Заповнений профіль сам по собі не дає абонемент
-            і не записує на заняття.
+          <p class="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950" role="status">
+            Профіль заповнений. Свій щоденник відкритий. Запис на заняття списує заняття з абонемента.
           </p>
         }
 
@@ -185,7 +183,6 @@ export class ProfilePage {
   private readonly router = inject(Router);
   protected readonly nameMaxLength = PROFILE_NAME_MAX_LENGTH;
   protected readonly phoneMaxLength = PROFILE_PHONE_MAX_LENGTH;
-  protected readonly profileRequirement = PROFILE_NAME_PHONE_REQUIREMENT;
 
   protected nameValue = '';
   protected phoneValue = '';
@@ -205,6 +202,13 @@ export class ProfilePage {
   protected readonly blockedAction = signal(false);
   private readonly returnPath = signal<string | null>(null);
   protected readonly email = computed(() => this.auth.user()?.email ?? null);
+  protected readonly benefit = computed(() =>
+    accessBenefitCopy({
+      profileComplete: this.complete(),
+      hasStudioAccess: this.auth.hasStudioAccess(),
+      redirected: this.blockedAction(),
+    }),
+  );
 
   constructor() {
     const params = this.route.snapshot.queryParamMap;

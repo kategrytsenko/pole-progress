@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
+import { accessBenefitCopy } from '../access-benefit';
 import { AuthStore } from '../auth.store';
 import { AuthFrameComponent } from './auth-frame.component';
 
@@ -47,13 +48,19 @@ import { AuthFrameComponent } from './auth-frame.component';
             </button>
           </div>
         } @else {
-          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Членство</p>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Без абонемента</p>
           <h1 id="access-title" class="mt-2 text-2xl font-semibold tracking-tight text-neutral-950">
-            Доступ до студії ще закритий
+            Розклад і публічні щоденники вже відкриті
           </h1>
-          <p class="mt-2 text-sm leading-relaxed text-neutral-600">
-            Щоденник відкривається з активним членством. Розклад і публічні щоденники можна переглянути вже зараз.
-          </p>
+          @if (benefit(); as card) {
+            <ul class="mt-3 list-disc space-y-2 pl-4 text-sm leading-relaxed text-neutral-600">
+              <li>{{ card.now }}</li>
+              @if (card.profile) {
+                <li>{{ card.profile }}</li>
+              }
+              <li>{{ card.pass }}</li>
+            </ul>
+          }
           @if (email(); as address) {
             <p class="mt-4 rounded-lg bg-neutral-100 px-3 py-2 text-sm text-neutral-700">
               Увійшли як <span class="font-medium text-neutral-900">{{ address }}</span>
@@ -98,6 +105,13 @@ export class AccessPendingPage {
   protected readonly ready = computed(() => this.auth.accessResolved());
   protected readonly failed = computed(() => this.auth.studioAccess() === 'error');
   protected readonly email = computed(() => this.auth.user()?.email ?? null);
+  protected readonly benefit = computed(() =>
+    accessBenefitCopy({
+      profileComplete: this.auth.profileComplete(),
+      hasStudioAccess: this.auth.hasStudioAccess(),
+      redirected: false,
+    }),
+  );
 
   constructor() {
     effect(() => {
