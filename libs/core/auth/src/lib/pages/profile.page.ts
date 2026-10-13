@@ -3,6 +3,12 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AuthStore } from '../auth.store';
 import { passwordFormError } from '../password-rules';
+import {
+  isProfileComplete,
+  PROFILE_NAME_MAX_LENGTH,
+  PROFILE_PHONE_MAX_LENGTH,
+  profileContactIssues,
+} from '../profile-completion';
 import { ProfilesApi } from '../profiles.api';
 
 @Component({
@@ -13,7 +19,10 @@ import { ProfilesApi } from '../profiles.api';
     <section class="mx-auto max-w-lg" aria-labelledby="profile-title">
       <header class="mb-6">
         <h1 id="profile-title" class="text-2xl font-semibold tracking-tight text-neutral-950">Профіль</h1>
-        <p class="mt-1 text-sm text-neutral-600">Ім'я видно в щоденнику. Пароль зберігається лише в обліковому записі.</p>
+        <p class="mt-1 text-sm text-neutral-600">
+          Ім’я видно в щоденнику. Номер телефону іншим клієнтам не показується. Пароль зберігається лише в
+          обліковому записі.
+        </p>
       </header>
 
       @if (!auth.hasStudioAccess()) {
@@ -41,18 +50,44 @@ import { ProfilesApi } from '../profiles.api';
           Не вдалось завантажити профіль. Перевір з’єднання і онови сторінку.
         </p>
       } @else if (status() === 'ready') {
-        <form (ngSubmit)="onSaveName()" novalidate class="space-y-4 rounded-2xl border border-neutral-200 bg-white p-5">
+        @if (complete()) {
+          <p class="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950" role="status">
+            Профіль заповнений. Абонемент і запис на заняття перевіряються окремо.
+          </p>
+        } @else {
+          <p class="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950" role="status">
+            Профіль не заповнений. Потрібні ім’я та номер телефону. Заповнений профіль сам по собі не дає абонемент
+            і не записує на заняття.
+          </p>
+        }
+
+        <form (ngSubmit)="onSaveProfile()" novalidate class="space-y-4 rounded-2xl border border-neutral-200 bg-white p-5">
           <label class="block">
-            <span class="block text-sm font-medium text-neutral-800">Ім'я</span>
+            <span class="block text-sm font-medium text-neutral-800">Ім’я</span>
             <input
               name="name"
               type="text"
               autocomplete="name"
-              maxlength="80"
-              [disabled]="nameBusy()"
+              [maxlength]="nameMaxLength"
+              [disabled]="profileBusy()"
               [(ngModel)]="nameValue"
               class="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-base text-neutral-900 shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
               placeholder="Як до тебе звертатись"
+            />
+          </label>
+
+          <label class="block">
+            <span class="block text-sm font-medium text-neutral-800">Телефон</span>
+            <input
+              name="phone"
+              type="tel"
+              inputmode="tel"
+              autocomplete="tel"
+              [maxlength]="phoneMaxLength"
+              [disabled]="profileBusy()"
+              [(ngModel)]="phoneValue"
+              class="mt-1 w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-base text-neutral-900 shadow-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
+              placeholder="+380671112233"
             />
           </label>
 
@@ -64,16 +99,22 @@ import { ProfilesApi } from '../profiles.api';
           @if (nameError(); as err) {
             <p class="text-sm text-rose-600" role="alert">{{ err }}</p>
           }
-          @if (nameSaved()) {
-            <p class="text-sm text-emerald-700" role="status">Ім'я збережено.</p>
+          @if (phoneError(); as err) {
+            <p class="text-sm text-rose-600" role="alert">{{ err }}</p>
+          }
+          @if (profileError(); as err) {
+            <p class="text-sm text-rose-600" role="alert">{{ err }}</p>
+          }
+          @if (profileSaved()) {
+            <p class="text-sm text-emerald-700" role="status">Профіль збережено.</p>
           }
 
           <button
             type="submit"
-            [disabled]="nameBusy()"
+            [disabled]="profileBusy()"
             class="rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {{ nameBusy() ? 'Зберігаємо…' : 'Зберегти ім’я' }}
+            {{ profileBusy() ? 'Зберігаємо…' : 'Зберегти профіль' }}
           </button>
         </form>
 
@@ -132,17 +173,23 @@ import { ProfilesApi } from '../profiles.api';
 export class ProfilePage {
   protected readonly auth = inject(AuthStore);
   private readonly profiles = inject(ProfilesApi);
+  protected readonly nameMaxLength = PROFILE_NAME_MAX_LENGTH;
+  protected readonly phoneMaxLength = PROFILE_PHONE_MAX_LENGTH;
 
   protected nameValue = '';
+  protected phoneValue = '';
   protected passwordValue = '';
   protected confirmValue = '';
 
   protected readonly status = signal<'loading' | 'ready' | 'missing' | 'error'>('loading');
-  protected readonly nameBusy = signal(false);
+  protected readonly complete = signal(false);
+  protected readonly profileBusy = signal(false);
   protected readonly passwordBusy = signal(false);
   protected readonly nameError = signal<string | null>(null);
+  protected readonly phoneError = signal<string | null>(null);
+  protected readonly profileError = signal<string | null>(null);
   protected readonly passwordError = signal<string | null>(null);
-  protected readonly nameSaved = signal(false);
+  protected readonly profileSaved = signal(false);
   protected readonly passwordSaved = signal(false);
   protected readonly email = computed(() => this.auth.user()?.email ?? null);
 
@@ -150,23 +197,28 @@ export class ProfilePage {
     void this.load();
   }
 
-  protected async onSaveName(): Promise<void> {
+  protected async onSaveProfile(): Promise<void> {
     this.nameError.set(null);
-    this.nameSaved.set(false);
-    const name = this.nameValue.trim();
-    if (name.length > 80) {
-      this.nameError.set('Ім’я має бути не довшим за 80 символів.');
-      return;
-    }
+    this.phoneError.set(null);
+    this.profileError.set(null);
+    this.profileSaved.set(false);
 
-    this.nameBusy.set(true);
+    const issues = profileContactIssues(this.nameValue, this.phoneValue);
+    this.nameError.set(issues.name);
+    this.phoneError.set(issues.phone);
+    if (issues.name || issues.phone) return;
+
+    this.profileBusy.set(true);
     try {
-      this.nameValue = await this.profiles.updateMyName(name);
-      this.nameSaved.set(true);
+      const saved = await this.profiles.updateMyProfile(this.nameValue, this.phoneValue);
+      this.nameValue = saved.name;
+      this.phoneValue = saved.phone;
+      this.complete.set(isProfileComplete(saved.name, saved.phone));
+      this.profileSaved.set(true);
     } catch {
-      this.nameError.set('Не вдалося зберегти ім’я.');
+      this.profileError.set('Не вдалося зберегти профіль.');
     } finally {
-      this.nameBusy.set(false);
+      this.profileBusy.set(false);
     }
   }
 
@@ -203,6 +255,8 @@ export class ProfilePage {
         return;
       }
       this.nameValue = profile.name ?? '';
+      this.phoneValue = profile.phone ?? '';
+      this.complete.set(isProfileComplete(profile.name, profile.phone));
       this.status.set('ready');
     } catch {
       this.status.set('error');

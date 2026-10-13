@@ -8,6 +8,8 @@ import {
   commentBody,
   commentsByAttempt,
   mapAttemptComment,
+  PUBLIC_JOURNAL_AUTHOR_COLUMNS,
+  PUBLIC_JOURNAL_PROFILE_COLUMNS,
   summarizeLikes,
   type AttemptComment,
 } from './journal';
@@ -23,6 +25,18 @@ const peer: {
   journalPublic: true,
   hasStudioAccess: true,
 };
+
+describe('public journal profile columns', () => {
+  it('does not let another client read a phone number', () => {
+    const profileColumns = PUBLIC_JOURNAL_PROFILE_COLUMNS.split(',').map((column) => column.trim());
+    const authorColumns = PUBLIC_JOURNAL_AUTHOR_COLUMNS.split(',').map((column) => column.trim());
+
+    expect(profileColumns).toEqual(['id', 'name', 'created_at']);
+    expect(profileColumns).not.toContain('phone');
+    expect(authorColumns).toEqual(['name']);
+    expect(authorColumns).not.toContain('phone');
+  });
+});
 
 describe('public journal visibility', () => {
   it('lets a studio peer read only a public journal', () => {

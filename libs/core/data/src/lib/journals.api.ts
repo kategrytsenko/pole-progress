@@ -5,6 +5,8 @@ import {
   commentBody,
   commentsByAttempt,
   mapAttemptComment,
+  PUBLIC_JOURNAL_AUTHOR_COLUMNS,
+  PUBLIC_JOURNAL_PROFILE_COLUMNS,
   summarizeLikes,
   type AttemptComment,
   type AttemptCommentRow,
@@ -24,7 +26,7 @@ interface JournalFlagRow {
 }
 
 const COMMENT_COLUMNS =
-  'id, attempt_id, author_id, body, created_at, updated_at, author:profiles(name)';
+  `id, attempt_id, author_id, body, created_at, updated_at, author:profiles(${PUBLIC_JOURNAL_AUTHOR_COLUMNS})`;
 
 export interface AttemptReactions {
   likes: ReadonlyMap<string, LikeSummary>;
@@ -40,7 +42,7 @@ export class JournalsApi {
 
     const { data, error } = await this.client
       .from('profiles')
-      .select('id, name, created_at')
+      .select(PUBLIC_JOURNAL_PROFILE_COLUMNS)
       .eq('journal_public', true)
       .order('name', { ascending: true, nullsFirst: false })
       .returns<PublicJournal[]>();
@@ -55,7 +57,7 @@ export class JournalsApi {
 
     const { data, error } = await this.client
       .from('profiles')
-      .select('id, name, created_at')
+      .select(PUBLIC_JOURNAL_PROFILE_COLUMNS)
       .eq('id', userId)
       .eq('journal_public', true)
       .maybeSingle<PublicJournal>();

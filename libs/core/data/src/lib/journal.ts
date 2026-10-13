@@ -1,5 +1,11 @@
 export const COMMENT_MAX_LENGTH = 2000;
 
+/** Columns a public-journal profile query may ask for. Phone is not one of them. */
+export const PUBLIC_JOURNAL_PROFILE_COLUMNS = 'id, name, created_at';
+
+/** Profile fields embedded on a public-journal comment. Phone is not included. */
+export const PUBLIC_JOURNAL_AUTHOR_COLUMNS = 'name';
+
 export interface LikeSummary {
   count: number;
   likedByMe: boolean;

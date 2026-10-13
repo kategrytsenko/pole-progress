@@ -1,6 +1,7 @@
 import { inject, Injectable } from '@angular/core';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SUPABASE_CLIENT } from '@org/supabase';
+import { ownProfileUpdate, type OwnProfileUpdate } from './profile-completion';
 
 export type UserRole = 'admin' | 'student';
 
@@ -9,6 +10,10 @@ export interface StudioProfile {
   name: string | null;
   role: UserRole;
   created_at: string;
+}
+
+export interface OwnProfile extends StudioProfile {
+  phone: string | null;
 }
 
 interface ProfileEmailRow {
@@ -20,7 +25,7 @@ interface ProfileEmailRow {
 export class ProfilesApi {
   private readonly client = inject<SupabaseClient>(SUPABASE_CLIENT);
 
-  async getMyProfile(): Promise<StudioProfile | null> {
+  async getMyProfile(): Promise<OwnProfile | null> {
     const userId = await this.currentUserId();
     if (!userId) return null;
 
@@ -31,26 +36,34 @@ export class ProfilesApi {
       .maybeSingle<StudioProfile>();
 
     if (error) throw error;
-    return data ?? null;
+    if (!data) return null;
+    return { ...data, phone: await this.ownPhone() };
   }
 
-  /** Updates only the signed-in user's visible name. Role is not sent. */
-  async updateMyName(name: string): Promise<string> {
+  /**
+   * Updates the signed-in user's name and phone. The payload has no role.
+   * Phone is read back through own_profile_phone() because that column is
+   * not selectable on the table.
+   */
+  async updateMyProfile(name: string, phone: string): Promise<OwnProfileUpdate> {
     const userId = await this.currentUserId();
     if (!userId) throw new Error('Немає сесії');
 
-    const trimmed = name.trim();
+    const patch = ownProfileUpdate({ name, phone });
     const { data, error } = await this.client
       .from('profiles')
-      .update({ name: trimmed })
+      .update(patch)
       .eq('id', userId)
       .select('name')
       .single<{ name: string | null }>();
 
     if (error) throw error;
-    const saved = data?.name ?? '';
-    if (saved !== trimmed) throw new Error('Не вдалося зберегти ім’я');
-    return saved;
+    const savedName = data?.name ?? '';
+    if (savedName !== patch.name) throw new Error('Не вдалося зберегти профіль');
+
+    const savedPhone = await this.ownPhone();
+    if (savedPhone !== patch.phone) throw new Error('Не вдалося зберегти профіль');
+    return { name: savedName, phone: savedPhone };
   }
 
   async getMyRole(): Promise<UserRole | null> {
@@ -145,6 +158,12 @@ export class ProfilesApi {
     const { data: sessionData, error: sessionError } = await this.client.auth.getSession();
     if (sessionError) throw sessionError;
     return sessionData.session?.user.id ?? null;
+  }
+
+  private async ownPhone(): Promise<string | null> {
+    const { data, error } = await this.client.rpc('own_profile_phone');
+    if (error) throw error;
+    return typeof data === 'string' ? data : null;
   }
 }
 
