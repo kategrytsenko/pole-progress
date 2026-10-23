@@ -8,6 +8,7 @@ import {
   type ClientPass,
   PassesApi,
   type PassProduct,
+  classTypesForClientFilter,
   ScheduleApi,
   SettingsApi,
 } from '@org/data';
@@ -96,7 +97,7 @@ export class ScheduleStore {
   readonly startTime = computed(() => this.state().startTime);
   readonly pendingSessionId = computed(() => this.state().pendingSessionId);
   readonly weekLabel = computed(() => formatWeekSpan(this.state().weekStart));
-  readonly types = computed(() => this.state().types.filter((type) => type.active));
+  readonly types = computed(() => classTypesForClientFilter(this.state().types));
 
   readonly passBalances = computed<PassBalanceView[]>(() => {
     const names = new Map(this.state().products.map((product) => [product.id, product.name]));

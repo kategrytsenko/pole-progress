@@ -25,6 +25,11 @@ export const adminRoutes: Routes = [
         loadComponent: () => import('./pages/branding.page').then((m) => m.BrandingPage),
       },
       {
+        path: 'sessions',
+        title: 'Заняття — Адмін',
+        loadComponent: () => import('./pages/sessions.page').then((m) => m.SessionsPage),
+      },
+      {
         path: 'clients',
         title: 'Клієнти — Адмін',
         loadComponent: () => import('./pages/clients.page').then((m) => m.ClientsPage),

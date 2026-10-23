@@ -1,4 +1,5 @@
-import { kyivDateKey, startOfWeek } from './week';
+import { sessionWrite } from '@org/data';
+import { formatKyivTime, kyivDateKey, kyivTimeKey, startOfWeek } from './week';
 import {
   activeBookingCount,
   buildScheduleDays,
@@ -201,5 +202,72 @@ describe('schedule session status', () => {
     });
     expect(card?.hint).toBe('Немає активного абонемента');
     expect(kyivDateKey(new Date('2026-10-05T15:00:00.000Z'))).toBe(monday?.key);
+  });
+
+  it('shows a newly created Kyiv session with its type, instructor, and seats', () => {
+    const written = sessionWrite(
+      {
+        typeId: 'stretch',
+        instructorId: 'teacher-c',
+        date: '2026-10-26',
+        startTime: '18:00',
+        durationMin: 60,
+        capacity: 10,
+      },
+      0,
+    );
+    expect(written.ok).toBe(true);
+    if (!written.ok) return;
+
+    const source = session({
+      id: 'new-class',
+      typeId: written.value.type_id,
+      typeName: 'Розтяжка',
+      instructorId: written.value.instructor_id,
+      instructorName: 'Іра',
+      startsAt: written.value.starts_at,
+      endsAt: written.value.ends_at,
+      capacity: written.value.capacity,
+      bookedCount: 0,
+    });
+    const days = buildScheduleDays(
+      context({
+        weekStart: startOfWeek(new Date(written.value.starts_at)),
+        now: Date.parse('2026-10-26T08:00:00.000Z'),
+        sessions: [source],
+      }),
+    );
+    const card = days.find((day) => day.key === '2026-10-26')?.sessions[0];
+
+    expect(kyivTimeKey(written.value.starts_at)).toBe('18:00');
+    expect(card).toMatchObject({
+      id: 'new-class',
+      typeName: 'Розтяжка',
+      instructorName: 'Іра',
+      startLabel: formatKyivTime(written.value.starts_at),
+      timeLabel: `${formatKyivTime(written.value.starts_at)}–${formatKyivTime(written.value.ends_at)}`,
+      capacity: 10,
+      bookedCount: 0,
+      availability: 'available',
+      availabilityLabel: 'Є місця',
+      cancelled: false,
+    });
+    expect(card?.startLabel).toBe('18:00');
+    expect(instructorFilterOptions([source], null)).toEqual([{ id: 'teacher-c', name: 'Іра' }]);
+    expect(
+      filterSessions([source], { typeId: null, instructorId: 'teacher-c', startTime: '18:00' }),
+    ).toEqual([source]);
+  });
+
+  it('keeps a session on the schedule when its class type is no longer offered', () => {
+    const days = buildScheduleDays(
+      context({
+        sessions: [session({ id: 'kept', typeId: 'retired', typeName: 'Архів' })],
+      }),
+    );
+    const shown = days.flatMap((day) => day.sessions);
+
+    expect(shown.map((row) => row.id)).toEqual(['kept']);
+    expect(shown[0]).toMatchObject({ typeName: 'Архів', availability: 'available' });
   });
 });

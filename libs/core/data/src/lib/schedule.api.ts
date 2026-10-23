@@ -1,9 +1,19 @@
 import { inject, Injectable } from '@angular/core';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SUPABASE_CLIENT } from '@org/supabase';
-import type { ClassSessionCard, ClassType, SessionRange } from './models';
+import type { ClassSession, ClassSessionCard, ClassType, SessionRange } from './models';
+import {
+  classTypeWrite,
+  newSessionInsert,
+  sessionCancelPatch,
+  sessionWrite,
+  sessionWriteErrorMessage,
+  type ClassTypeDraft,
+  type SessionDraft,
+} from './session-admin';
 
 const CLASS_TYPE_COLUMNS = 'id, name, duration_min, default_capacity, active, created_at';
+const SESSION_COLUMNS = 'id, type_id, instructor_id, starts_at, ends_at, capacity, status, created_at';
 
 @Injectable({ providedIn: 'root' })
 export class ScheduleApi {
@@ -41,6 +51,82 @@ export class ScheduleApi {
     const cards = parseSessionCards(data === null ? [] : [data]);
     return cards[0] ?? null;
   }
+
+  async createClassType(draft: ClassTypeDraft): Promise<ClassType> {
+    const row = unwrap(classTypeWrite(draft));
+    const { data, error } = await this.client
+      .from('class_types')
+      .insert(row)
+      .select(CLASS_TYPE_COLUMNS)
+      .single<ClassType>();
+
+    if (error) throw writeError(error, 'Не вдалося зберегти тип заняття.');
+    return data;
+  }
+
+  async updateClassType(id: string, draft: ClassTypeDraft): Promise<ClassType> {
+    const row = unwrap(classTypeWrite(draft));
+    const { data, error } = await this.client
+      .from('class_types')
+      .update(row)
+      .eq('id', id)
+      .select(CLASS_TYPE_COLUMNS)
+      .single<ClassType>();
+
+    if (error) throw writeError(error, 'Не вдалося зберегти тип заняття.');
+    return data;
+  }
+
+  async createSession(draft: SessionDraft): Promise<ClassSession> {
+    const row = unwrap(newSessionInsert(draft));
+    const { data, error } = await this.client
+      .from('class_sessions')
+      .insert(row)
+      .select(SESSION_COLUMNS)
+      .single<ClassSession>();
+
+    if (error) throw writeError(error, 'Не вдалося зберегти заняття.');
+    return data;
+  }
+
+  /**
+   * Updates type, instructor, time, and capacity. Status is unchanged.
+   * `activeBookings` is the current count of bookings with status `booked`.
+   */
+  async updateSession(id: string, draft: SessionDraft, activeBookings: number): Promise<ClassSession> {
+    const row = unwrap(sessionWrite(draft, activeBookings));
+    const { data, error } = await this.client
+      .from('class_sessions')
+      .update(row)
+      .eq('id', id)
+      .select(SESSION_COLUMNS)
+      .single<ClassSession>();
+
+    if (error) throw writeError(error, 'Не вдалося зберегти заняття.');
+    return data;
+  }
+
+  /** Sets status to cancelled. Does not delete bookings or change pass credits. */
+  async cancelSession(id: string): Promise<ClassSession> {
+    const { data, error } = await this.client
+      .from('class_sessions')
+      .update(sessionCancelPatch())
+      .eq('id', id)
+      .select(SESSION_COLUMNS)
+      .single<ClassSession>();
+
+    if (error) throw writeError(error, 'Не вдалося скасувати заняття.');
+    return data;
+  }
+}
+
+function unwrap<T>(result: { ok: true; value: T } | { ok: false; error: string }): T {
+  if (!result.ok) throw new Error(result.error);
+  return result.value;
+}
+
+function writeError(error: unknown, fallback: string): Error {
+  return new Error(sessionWriteErrorMessage(error, fallback));
 }
 
 function parseSessionCards(value: unknown): ClassSessionCard[] {

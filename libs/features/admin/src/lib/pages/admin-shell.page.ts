@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { ToastHostComponent } from '@org/shell';
+import { ADMIN_NAV } from '../admin-nav';
 
 @Component({
   selector: 'pp-admin-shell',
@@ -27,30 +28,14 @@ import { ToastHostComponent } from '@org/shell';
 
         <nav aria-label="Адмін-розділи" class="border-t border-neutral-200">
           <div class="mx-auto flex max-w-6xl items-center gap-1 overflow-x-auto px-4">
-            <a
-              routerLink="categories"
-              routerLinkActive="border-primary text-primary"
-              [routerLinkActiveOptions]="{ exact: false }"
-              class="border-b-2 border-transparent px-3 py-2 text-sm font-medium text-neutral-600 transition hover:text-primary"
-            >Категорії</a>
-            <a
-              routerLink="elements"
-              routerLinkActive="border-primary text-primary"
-              [routerLinkActiveOptions]="{ exact: false }"
-              class="border-b-2 border-transparent px-3 py-2 text-sm font-medium text-neutral-600 transition hover:text-primary"
-            >Елементи</a>
-            <a
-              routerLink="branding"
-              routerLinkActive="border-primary text-primary"
-              [routerLinkActiveOptions]="{ exact: false }"
-              class="border-b-2 border-transparent px-3 py-2 text-sm font-medium text-neutral-600 transition hover:text-primary"
-            >Брендинг</a>
-            <a
-              routerLink="clients"
-              routerLinkActive="border-primary text-primary"
-              [routerLinkActiveOptions]="{ exact: false }"
-              class="border-b-2 border-transparent px-3 py-2 text-sm font-medium text-neutral-600 transition hover:text-primary"
-            >Клієнти</a>
+            @for (item of nav; track item.path) {
+              <a
+                [routerLink]="item.path"
+                routerLinkActive="border-primary text-primary"
+                [routerLinkActiveOptions]="{ exact: false }"
+                class="border-b-2 border-transparent px-3 py-2 text-sm font-medium text-neutral-600 transition hover:text-primary"
+              >{{ item.label }}</a>
+            }
           </div>
         </nav>
       </header>
@@ -63,4 +48,6 @@ import { ToastHostComponent } from '@org/shell';
     <pp-toast-host />
   `,
 })
-export class AdminShellPage {}
+export class AdminShellPage {
+  protected readonly nav = ADMIN_NAV;
+}

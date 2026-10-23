@@ -22,7 +22,7 @@ The identifiers below are kept from the previous plan. Several items that were o
 | `public-journals` | completed | **DONE in repo** for any signed-in user while `journal_public` is true, including an incomplete profile and a client without a pass. Likes and comments still need a completed profile and studio access. Private journals stay with the owner and admin. Local SQL checked a public read, a private hide, and a blocked like. A browser pass with two accounts is **NEEDS VERIFICATION**. Hosted apply is **NEEDS VERIFICATION** |
 | `admin-clients` | completed | **PARTIAL:** `/admin/clients` lists clients, changes roles, and issues or renews one active pass. It does not show profile completion, phone, bookings, or attendance, and it does not edit pass products |
 | `s7-passes-optional` | pending | **PARTIAL:** `PassesApi.listMine` and balances on `/app/schedule`. Passes are not on `/app/profile`. No pass-product editor |
-| `s8-classes-optional` | pending | **PLANNED, now in scope:** admin writes for class types and sessions exist in RLS. Angular has no screen for them |
+| `s8-classes-optional` | pending | **PARTIAL, NEEDS VERIFICATION:** `/admin/sessions` creates and edits class types and sessions, lists a Kyiv date range, and cancels a session by setting `status` to `cancelled`. [`20261023184236_drop_class_session_delete_policy.sql`](../supabase/migrations/20261023184236_drop_class_session_delete_policy.sql) drops `class_sessions_delete_staff` and revokes `DELETE` from `anon` and `authenticated`. Admin insert and update policies are unchanged. The page was not opened in a browser. The migration has not been applied locally or on the hosted project |
 
 ## Product focus
 
@@ -122,7 +122,7 @@ Diary-home extras stay **PARTIAL** and are deferred. See [Deferred](#deferred).
 - `/admin/clients` ([`libs/features/admin/src/lib/pages/clients.page.ts`](../libs/features/admin/src/lib/pages/clients.page.ts)): name, email, id, role, and whether one pass is active now. **Видати** inserts an active `client_passes` row. **Продовжити** updates that active row and refills `remaining` from the chosen product. The signed-in admin cannot change their own role in the UI.
 - Emails come from `admin_profile_emails()` in [`supabase/migrations/202610090001_admin_clients.sql`](../supabase/migrations/202610090001_admin_clients.sql). Insert and update on `client_passes` require `is_admin()`.
 - Pass products are read-only here. The page says when the catalog is empty.
-- There is no class-session screen, no product editor, no profile-completion column, and no booking or attendance history. Phone is not on this screen; `authenticated` cannot select `profiles.phone`.
+- There is no product editor, no profile-completion column, and no booking or attendance history. Class types and sessions are on `/admin/sessions`, not on this page. Phone is not on this screen; `authenticated` cannot select `profiles.phone`.
 - Tests: [`client-directory.spec.ts`](../libs/features/admin/src/lib/client-directory.spec.ts), [`pass-dates.spec.ts`](../libs/features/admin/src/lib/pass-dates.spec.ts). Issuing a pass on a live database is **NEEDS VERIFICATION**.
 
 ### Schedule, booking, and passes — PARTIAL
@@ -143,7 +143,7 @@ Gaps that matter before any booking for a client without a pass:
 - `bookings_insert_staff_or_own` still lets a client insert their own `booked` row. The policy checks an active pass with `remaining > 0` and a scheduled session. It does not lock the session, check capacity, or decrement `remaining`. Calls that skip `book_session` can overbook and spend the same credit twice.
 - `bookings.pass_id` is `not null`, so a class without a pass cannot be stored yet. Do not change that until decisions 1 and 2 are approved.
 - There is no payment table, and none should be added for processing payments. There is no attendance table. Past bookings are the only attendance history.
-- No admin UI to create or cancel a session. Session rows are SQL or Studio today.
+- `/admin/sessions` can create and cancel a session in the repository. That screen is **NEEDS VERIFICATION** until an admin uses it in a browser and the new session shows on `/app/schedule`. Cancelling a session does not cancel its bookings or change pass credits.
 
 ## Milestones
 
@@ -249,16 +249,23 @@ Depends on milestones 1 and 4. The page stays a profile, not a second schedule o
 
 Acceptance: after a book and a cancel, the profile lists match the schedule. A client cannot read another client's bookings or passes.
 
-### 6. Admin class sessions
+### 6. Admin class sessions — PARTIAL, NEEDS VERIFICATION
 
-Does not wait on a payment provider or on the undecided individual-class workflow. Reuse `class_types`, `class_sessions`, and the admin write policies. A simple list and form is enough. Do not build a calendar editor. Do not add payment processing.
+Does not wait on a payment provider or on the undecided individual-class workflow. Reuses `class_types`, `class_sessions`, `ProfilesApi.listProfiles()`, and `list_sessions_in_range`. No instructor table, instructor role, new RPC, `studio_id`, calendar, waitlist, booked-client list, or payment record.
 
-- Create and edit a session: date, start, end, instructor (`profiles.id`), capacity, and class type.
-- Cancel a session (`status = 'cancelled'`). Do not delete history by default.
-- The client schedule shows the change after refresh.
-- Instructor choices are profiles, not a separate role. The existing demo teacher is a `student` profile used only as `instructor_id`.
+Implemented in the repository:
 
-Acceptance: a non-admin insert or update fails in Postgres. Cancelling a session marks it cancelled on `/app/schedule`. This task does not define whether existing bookings are auto-cancelled or have a class credit restored; that stays with decisions 3 and 4. Until then, cancelling a session does not silently rewrite bookings.
+- Route `/admin/sessions`, nav label **Заняття**, still behind the parent `studioAccessGuard` and `adminOnlyGuard`. Page: [`sessions.page.ts`](../libs/features/admin/src/lib/pages/sessions.page.ts). Writes: [`ScheduleApi`](../libs/core/data/src/lib/schedule.api.ts).
+- Class-type form: name, duration in minutes, default capacity, active flag. Deactivating a type removes it from the new-session choices and from the client schedule filter (`classTypesForClientFilter` in the schedule store). `list_sessions_in_range` does not filter `class_types.active`, so existing sessions stay on `/app/schedule`.
+- Session form: class type, profile as the teacher (labeled by name; choosing one does not change `profiles.role`), Kyiv date, Kyiv start time, duration, and capacity. Duration and capacity default from the type and can differ on the session. The form rejects a non-positive duration or capacity, and a capacity below the loaded active booking count.
+- Changing the time or instructor of a session that already has active bookings asks for confirmation and shows that count. The save still does not rewrite bookings.
+- The list is `list_sessions_in_range` for a chosen Kyiv date range: date, start and end, type, instructor, capacity, active bookings, and status. **Скасувати заняття** sets `status` to `cancelled` only.
+- [`20261023184236_drop_class_session_delete_policy.sql`](../supabase/migrations/20261023184236_drop_class_session_delete_policy.sql) drops `class_sessions_delete_staff` and revokes `DELETE` on `class_sessions` from `anon` and `authenticated`. Insert and update stay `is_admin()` from `20261012201704`. There is no delete action in the UI. `class_types` delete policy is unchanged.
+- Tests: [`kyiv-time.spec.ts`](../libs/core/data/src/lib/kyiv-time.spec.ts), [`session-admin.spec.ts`](../libs/core/data/src/lib/session-admin.spec.ts), [`session-policies.spec.ts`](../libs/core/data/src/lib/session-policies.spec.ts), [`admin-nav.spec.ts`](../libs/features/admin/src/lib/admin-nav.spec.ts), and the new-session case in [`schedule-view.spec.ts`](../libs/features/schedule/src/lib/schedule-view.spec.ts). The policy test reads migration text. It does not execute RLS.
+
+Not done in this milestone: the direct client insert on `bookings` can still skip `book_session` and capacity. That remains milestone 4. Cancelling a session does not cancel bookings or restore pass credits; that stays with decisions 3 and 4. A direct table update can still set capacity below the booking count, because the database has no such check. The migration file has not been applied locally or on the hosted project. The page was not opened in a browser.
+
+Acceptance still open: sign in as an admin, create a type and a session, reload `/app/schedule`, and see that session. Cancel it and see **Скасовано** there, with booking rows and pass credits unchanged. Repeat a non-admin insert, update, and delete against Postgres after the migration is applied locally. Do not treat the unit tests as that check.
 
 ### 7. Admin pass products
 
@@ -346,8 +353,9 @@ Migrations in `supabase/migrations/`, in apply order:
 | `20261012210351_remove_held_stage.sql` | Rewrites `element_attempts.stage = held` to `in_progress` and rebuilds `attempt_stage` as `trying \| in_progress \| mastered` |
 | `20261013110806_profile_phone.sql` | Nullable `profiles.phone`, `profile_is_complete()`, `own_profile_phone()`, and column privileges that omit `phone` from client selects |
 | `20261013114234_profile_completion_gates.sql` | Schedule and public-journal reads for any signed-in user. Booking, diary writes, media writes, likes, and comments also require `profile_is_complete()`. Admin cancel does not. `has_studio_access()` is unchanged |
+| `20261023184236_drop_class_session_delete_policy.sql` | Drops `class_sessions_delete_staff` and revokes `DELETE` on `class_sessions` from `anon` and `authenticated`. Admin insert and update are left as they were. Not applied locally or to the hosted project |
 
-Future files, not written yet: booking insert lockdown and owner cancel after an exhausted pass (milestone 4), admin phone read for the client directory (milestone 9). No migration for a payment status or a nullable `pass_id` is planned until decisions 1 and 2 are approved.
+Future files, not written yet: booking insert lockdown and owner cancel after an exhausted pass (milestone 4), admin phone read for the client directory (milestone 9). No migration for a payment status or a nullable `pass_id` is planned until decisions 1 and 2 are approved. The session screen does not add a capacity trigger; a direct booking insert can still pass the client policy until milestone 4.
 
 Storage: `media` is private (`user/{uid}/attempt/{attemptId}/...`). `catalog` is public read. The database stores paths.
 
@@ -407,6 +415,7 @@ Implemented in SQL and TypeScript, and not proven by an automated database or br
 - Password recovery and setting a password on a Google-only user. The flow is in the app and the local recovery template; hosted SMTP and the dashboard template were not changed.
 - Saving a name and phone on `/app/profile` worked through local PostgREST: `profile_is_complete()` flipped to true and `own_profile_phone()` returned the saved number. A role update returned `42501`. A second local user received `42501` for `select=phone`, and `own_profile_phone()` returned only that user's own number. The demo phone was restored to null. The same save was not clicked through in a browser. The hosted project does not have `20261013110806` or `20261013114234` until `supabase db push`. There is still no RLS integration suite in CI.
 - Milestone 2 was not clicked through in a browser. Local SQL covered schedule browsing, public and private journal reads, `book_session`, attempt insert, media upload, likes, and an admin cancel. Repeat that on the hosted project after `db push`, then sign in as an incomplete client and as a client with no pass and walk schedule, a public journal, a private journal, book, diary create, and media upload.
+- Milestone 6 is implemented in TypeScript and in a new migration file. It was not clicked through as an admin, and the created session was not checked on `/app/schedule`. Local Docker was not running, so `supabase migration up` was not run, and `20261023184236` is not on the hosted project either. The migration-text test does not prove that a non-admin insert, update, or delete fails on a running database. Direct booking inserts are still milestone 4.
 - Milestone 3 was exercised on the local app at `http://localhost:4200`, not on the hosted project. The demo client has a name and no phone. With an active pass, the current week showed an open class (8 seats, 0 active bookings, 8 remaining, no book button, profile hint), a full class (1 active booking, 0 remaining, **Немає місць**), and a cancelled class (**Скасовано**, no book button). Exotic plus 18:00 showed the filter empty state. 11:00 left only the cancelled class. The week pager moved to 5–11 жовтня and back. A 390px-wide viewport still showed the instructor filter and an open class. Those three sessions and the one booking were deleted afterward; `bookings` was empty and the demo pass was active with 8 credits. With that pass set to `revoked`, the same client still opened `/app/schedule`, saw **Немає активного абонемента**, and had no book button; the pass was set back to `active`. A rolled-back local call to `list_sessions_in_range` left `booked_count` at 0 after a cancelled insert and returned 1 after a `booked` insert. The function body counts `status = 'booked'` and does not mention phone, email, or `user_id`. Repeat the same walk on the hosted project after `db push`. Booking was not clicked, so credit spend is still unchecked.
 
 ## Technical debt

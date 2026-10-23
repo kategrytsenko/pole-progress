@@ -9,6 +9,8 @@ export * from './lib/journals.api';
 export * from './lib/students.api';
 export * from './lib/media.api';
 export * from './lib/branding.service';
+export * from './lib/kyiv-time';
+export * from './lib/session-admin';
 export * from './lib/schedule.api';
 export * from './lib/bookings.api';
 export * from './lib/membership';
